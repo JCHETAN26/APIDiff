@@ -1,0 +1,62 @@
+# ---- Planning docs (kept local, intentionally untracked) ----
+/docs/ARCHITECTURE.md
+/docs/BUILD_PLAN.md
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+
+# ---- .NET (services/api) ----
+bin/
+obj/
+*.user
+[Dd]ebug/
+[Rr]elease/
+.vs/
+
+# ---- Go (services/replay-engine) ----
+/services/replay-engine/bin/
+*.test
+*.out
+
+# ---- Python (services/analysis) ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+
+# ---- Node / React (web/dashboard) ----
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+*.local
+
+# ---- Terraform (infra/terraform) ----
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!example.tfvars
+
+# ---- Secrets / env ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---- Build / logs ----
+*.log
+tmp/

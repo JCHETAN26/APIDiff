@@ -24,7 +24,9 @@ services:
 
   api:
     build:
-      context: ./services/api
+      # Root context so the shared proto/ contracts are in scope at build time.
+      context: .
+      dockerfile: services/api/Dockerfile
     environment:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=apidiff;Username=apidiff;Password=apidiff

@@ -11,3 +11,4 @@ it in the PR that makes the decision.
 | [0003](./0003-postgres-system-of-record.md) | PostgreSQL as the single system of record | Accepted |
 | [0004](./0004-ephemeral-per-pr-environments.md) | Ephemeral per-PR Kubernetes environments | Accepted |
 | [0005](./0005-generated-code-strategy.md) | How generated gRPC code is produced and stored | Accepted |
+| [0006](./0006-capture-time-sanitization.md) | Sanitize captured traffic at ingest, before storage | Accepted |

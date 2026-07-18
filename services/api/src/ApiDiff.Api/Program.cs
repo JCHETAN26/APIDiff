@@ -1,4 +1,6 @@
 using ApiDiff.Api.Auth;
+using ApiDiff.Api.Capture;
+using ApiDiff.Api.Features.Capture;
 using ApiDiff.Api.Features.Organizations;
 using ApiDiff.Api.Features.Projects;
 using ApiDiff.Api.Features.Scenarios;
@@ -16,6 +18,8 @@ builder.Services.AddApiDiffAuth(builder.Configuration);
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IAccessControl, AccessControl>();
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddSingleton(SanitizationOptions.Default);
+builder.Services.AddSingleton<ISanitizer, Sanitizer>();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
@@ -40,6 +44,7 @@ var api = app.MapGroup("/api/v1").RequireAuthorization();
 api.MapOrganizationEndpoints();
 api.MapProjectEndpoints();
 api.MapScenarioEndpoints();
+api.MapCaptureEndpoints();
 
 await app.RunAsync();
 

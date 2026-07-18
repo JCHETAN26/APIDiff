@@ -8,5 +8,5 @@ RUN CGO_ENABLED=0 go build -trimpath -o /out/replay-engine ./cmd/replay-engine
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/replay-engine /replay-engine
-EXPOSE 8081
+EXPOSE 8081 9090
 ENTRYPOINT ["/replay-engine"]

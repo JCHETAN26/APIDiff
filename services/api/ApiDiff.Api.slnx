@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/ApiDiff.Api/ApiDiff.Api.csproj" />
+  <Project Path="tests/ApiDiff.Api.Tests/ApiDiff.Api.Tests.csproj" />
+</Solution>

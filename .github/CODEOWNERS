@@ -1,0 +1,11 @@
+# Default owner for everything in the repo.
+# Replace with team handles as the team grows.
+*                      @JCHETAN26
+
+# Service-specific ownership (adjust as teams form).
+/services/api/         @JCHETAN26
+/services/replay-engine/ @JCHETAN26
+/services/analysis/    @JCHETAN26
+/web/dashboard/        @JCHETAN26
+/infra/                @JCHETAN26
+/proto/                @JCHETAN26

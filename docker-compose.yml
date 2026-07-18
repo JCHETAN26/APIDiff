@@ -1,0 +1,54 @@
+# Local development stack for APIDiff.
+#
+#   docker compose up --build
+#
+# The dashboard runs separately in dev mode: `cd web/dashboard && npm run dev`.
+# Kubernetes uses HTTP liveness probes against each service's /healthz.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: apidiff
+      POSTGRES_PASSWORD: apidiff
+      POSTGRES_DB: apidiff
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apidiff"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./services/api
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=apidiff;Username=apidiff;Password=apidiff
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  replay-engine:
+    build:
+      context: ./services/replay-engine
+    environment:
+      PORT: "8081"
+    ports:
+      - "8081:8081"
+
+  analysis:
+    build:
+      context: ./services/analysis
+    environment:
+      PORT: "8082"
+    ports:
+      - "8082:8082"
+
+volumes:
+  pgdata:

@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Detect which parts of the monorepo changed so each service job runs only
+  # when relevant.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      replay-engine: ${{ steps.filter.outputs.replay-engine }}
+      analysis: ${{ steps.filter.outputs.analysis }}
+      dashboard: ${{ steps.filter.outputs.dashboard }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'services/api/**'
+            replay-engine:
+              - 'services/replay-engine/**'
+            analysis:
+              - 'services/analysis/**'
+            dashboard:
+              - 'web/dashboard/**'
+
+  api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+      - run: dotnet restore ApiDiff.Api.slnx
+      - name: Format check
+        run: dotnet format ApiDiff.Api.slnx --verify-no-changes
+      - name: Build
+        run: dotnet build ApiDiff.Api.slnx -c Release --no-restore
+      - name: Test
+        run: dotnet test ApiDiff.Api.slnx -c Release --no-build
+
+  replay-engine:
+    needs: changes
+    if: needs.changes.outputs.replay-engine == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/replay-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          # No external deps yet, so there is no go.sum to hash for caching.
+          cache: false
+      - name: Format check
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - name: Vet
+        run: go vet ./...
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          working-directory: services/replay-engine
+      - name: Test
+        run: go test -race ./...
+
+  analysis:
+    needs: changes
+    if: needs.changes.outputs.analysis == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/analysis
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check .
+      - name: Type check
+        run: mypy
+      - name: Test
+        run: pytest -q
+
+  dashboard:
+    needs: changes
+    if: needs.changes.outputs.dashboard == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/dashboard/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Type check
+        run: npm run typecheck
+      - name: Test
+        run: npm test
+
+  # Aggregate gate: a single required check that passes only when every
+  # triggered job succeeded (or was skipped because nothing changed).
+  ci-ok:
+    if: always()
+    needs: [api, replay-engine, analysis, dashboard]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify no job failed
+        run: |
+          results="${{ needs.api.result }} ${{ needs.replay-engine.result }} ${{ needs.analysis.result }} ${{ needs.dashboard.result }}"
+          echo "results: $results"
+          for r in $results; do
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
+              echo "a required job failed"; exit 1
+            fi
+          done

@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package apidiff.replay.v1;
+
+import "apidiff/common/v1/common.proto";
+
+option csharp_namespace = "ApiDiff.Contracts.Replay.V1";
+option go_package = "github.com/apidiff/replay-engine/gen/apidiff/replay/v1;replayv1";
+
+// ReplayService replays captured scenarios against a baseline and a candidate
+// target, diffing responses and measuring latency. Implemented by the Go
+// replay engine; called by the C# API orchestrator.
+service ReplayService {
+  // Replay a set of scenarios. Results stream back as each scenario completes,
+  // so the orchestrator can report progress incrementally.
+  rpc Replay(ReplayRequest) returns (stream ReplayResponse);
+}
+
+// A single captured scenario to replay.
+message Scenario {
+  string id = 1;
+  apidiff.common.v1.HttpRequest request = 2;
+  // The reference (baseline-at-capture) response, used when a live baseline
+  // target is not replayed.
+  apidiff.common.v1.HttpResponse reference_response = 3;
+}
+
+// Tunables for a replay run.
+message ReplayConfig {
+  int32 concurrency = 1;               // max in-flight requests per target
+  int64 request_timeout_ms = 2;        // per-request timeout
+  // Response fields to ignore when diffing (e.g. "timestamp", "requestId").
+  repeated string ignore_fields = 3;
+  // Latency regression threshold as a fraction (0.20 == candidate 20% slower).
+  double latency_regression_ratio = 4;
+}
+
+message ReplayRequest {
+  string run_id = 1;
+  repeated Scenario scenarios = 2;
+  apidiff.common.v1.Target baseline = 3;
+  apidiff.common.v1.Target candidate = 4;
+  ReplayConfig config = 5;
+}
+
+// One field-level difference between baseline and candidate responses.
+message FieldDiff {
+  string path = 1;                 // JSON path, header name, or "status_code"
+  string baseline_value = 2;
+  string candidate_value = 3;
+  DiffKind kind = 4;
+}
+
+enum DiffKind {
+  DIFF_KIND_UNSPECIFIED = 0;
+  DIFF_KIND_ADDED = 1;             // present in candidate, absent in baseline
+  DIFF_KIND_REMOVED = 2;           // present in baseline, absent in candidate
+  DIFF_KIND_CHANGED = 3;           // present in both, values differ
+}
+
+message Diff {
+  repeated FieldDiff fields = 1;
+  bool has_behavioral_change = 2;
+}
+
+// Streamed wrapper: one message per replayed scenario as it completes.
+message ReplayResponse {
+  ReplayResult result = 1;
+}
+
+// The outcome for one replayed scenario.
+message ReplayResult {
+  string run_id = 1;
+  string scenario_id = 2;
+  apidiff.common.v1.HttpResponse baseline_response = 3;
+  apidiff.common.v1.HttpResponse candidate_response = 4;
+  Diff diff = 5;
+  apidiff.common.v1.Verdict verdict = 6;
+  int64 latency_delta_ms = 7;      // candidate_latency - baseline_latency
+  string error = 8;                // populated when verdict == VERDICT_ERROR
+}

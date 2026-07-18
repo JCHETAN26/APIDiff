@@ -3,13 +3,17 @@ name = "apidiff-analysis"
 version = "0.0.0"
 description = "APIDiff analysis service: cluster duplicate scenarios and explain failures."
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+  "grpcio>=1.68",
+  "protobuf>=5.29",
+]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",
   "ruff>=0.6",
   "mypy>=1.11",
+  "grpcio-tools>=1.68",
 ]
 
 [build-system]
@@ -22,6 +26,8 @@ where = ["src"]
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
+# Generated protobuf/gRPC stubs are checked in but not linted.
+extend-exclude = ["gen"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -30,7 +36,14 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.13"
 strict = true
 files = ["src", "tests"]
+# Generated stubs are not type-checked under strict mode.
+exclude = ["gen/"]
+
+[[tool.mypy.overrides]]
+module = ["apidiff.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "gen"]
 testpaths = ["tests"]

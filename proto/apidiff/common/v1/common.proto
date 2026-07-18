@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package apidiff.common.v1;
+
+option csharp_namespace = "ApiDiff.Contracts.Common.V1";
+option go_package = "github.com/apidiff/replay-engine/gen/apidiff/common/v1;commonv1";
+
+// An HTTP header. Repeated because a header name may appear multiple times.
+message Header {
+  string name = 1;
+  string value = 2;
+}
+
+// A captured (and sanitized) HTTP request used as a replay scenario input.
+message HttpRequest {
+  string method = 1;              // GET, POST, ...
+  string path = 2;                // /v1/orders/123
+  string query = 3;               // raw query string, without leading '?'
+  repeated Header headers = 4;    // sanitized headers only
+  bytes body = 5;                 // sanitized body
+}
+
+// A captured HTTP response (reference/baseline) or an observed replay response.
+message HttpResponse {
+  int32 status_code = 1;
+  repeated Header headers = 2;
+  bytes body = 3;
+  int64 latency_ms = 4;           // observed latency for replayed responses; 0 for references
+}
+
+// A target service instance to replay against.
+message Target {
+  string label = 1;               // "baseline" | "candidate"
+  string base_url = 2;            // e.g. http://candidate.pr-123.svc.cluster.local
+}
+
+// The verdict for a single replayed scenario.
+enum Verdict {
+  VERDICT_UNSPECIFIED = 0;
+  VERDICT_PASS = 1;                   // candidate matches baseline within tolerances
+  VERDICT_BEHAVIORAL_REGRESSION = 2;  // response shape/value diverged
+  VERDICT_PERF_REGRESSION = 3;        // latency/throughput regressed
+  VERDICT_ERROR = 4;                  // replay could not be completed
+}

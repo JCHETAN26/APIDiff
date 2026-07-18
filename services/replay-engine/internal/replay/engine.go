@@ -82,7 +82,8 @@ func (e *Engine) Run(ctx context.Context, req *replayv1.ReplayRequest, emit func
 	for res := range results {
 		if err := emit(res); err != nil {
 			cancel()
-			for range results { // drain so workers unblock and exit
+			for r := range results {
+				_ = r // drain remaining results so workers unblock and exit
 			}
 			return err
 		}

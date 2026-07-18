@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package apidiff.analysis.v1;
+
+import "apidiff/replay/v1/replay.proto";
+
+option csharp_namespace = "ApiDiff.Contracts.Analysis.V1";
+option go_package = "github.com/apidiff/replay-engine/gen/apidiff/analysis/v1;analysisv1";
+
+// AnalysisService makes regression results legible: it clusters duplicate or
+// near-duplicate scenarios so a run replays representatives, and it explains
+// failures. Implemented by the Python analysis service; called by the C# API.
+service AnalysisService {
+  // Group duplicate/near-duplicate scenarios into clusters.
+  rpc ClusterScenarios(ClusterScenariosRequest) returns (ClusterScenariosResponse);
+
+  // Explain and rank a set of failed replay results.
+  rpc ExplainFailures(ExplainFailuresRequest) returns (ExplainFailuresResponse);
+}
+
+// --- Clustering -------------------------------------------------------------
+
+// A minimal scenario descriptor for clustering (method + path + a stable
+// fingerprint of the sanitized request).
+message ScenarioDescriptor {
+  string scenario_id = 1;
+  string method = 2;
+  string path = 3;
+  string fingerprint = 4;          // caller-computed content hash
+}
+
+message ClusterScenariosRequest {
+  string project_id = 1;
+  repeated ScenarioDescriptor scenarios = 2;
+}
+
+// A group of equivalent scenarios; one representative is replayed for the group.
+message ScenarioCluster {
+  string cluster_id = 1;
+  string representative_scenario_id = 2;
+  repeated string member_scenario_ids = 3;
+}
+
+message ClusterScenariosResponse {
+  repeated ScenarioCluster clusters = 1;
+}
+
+// --- Failure explanation ----------------------------------------------------
+
+message ExplainFailuresRequest {
+  string run_id = 1;
+  repeated apidiff.replay.v1.ReplayResult failures = 2;
+}
+
+// A ranked, human-readable explanation for one or more related failures.
+message FailureExplanation {
+  string title = 1;               // e.g. "Removed field `order.total` in 12 scenarios"
+  string detail = 2;              // longer natural-language explanation
+  repeated string scenario_ids = 3;
+  double severity = 4;            // 0..1 ranking score; higher is more severe
+  string likely_cause = 5;        // best-guess root cause
+}
+
+message ExplainFailuresResponse {
+  repeated FailureExplanation explanations = 1;  // ranked, most severe first
+}

@@ -1,0 +1,21 @@
+version: v2
+# Regenerate from the proto/ directory:  buf generate
+# Go and Python output is committed (see ADR 0005); C# is generated at build
+# time by Grpc.Tools and is not produced here.
+clean: true
+plugins:
+  # ---- Go (services/replay-engine) ----
+  - remote: buf.build/protocolbuffers/go
+    out: ../services/replay-engine/gen
+    opt: paths=source_relative
+  - remote: buf.build/grpc/go
+    out: ../services/replay-engine/gen
+    opt: paths=source_relative
+
+  # ---- Python (services/analysis) ----
+  - remote: buf.build/protocolbuffers/python
+    out: ../services/analysis/gen
+  - remote: buf.build/protocolbuffers/pyi
+    out: ../services/analysis/gen
+  - remote: buf.build/grpc/python
+    out: ../services/analysis/gen

@@ -41,8 +41,10 @@ services:
       context: ./services/replay-engine
     environment:
       PORT: "8081"
+      GRPC_PORT: "9090"
     ports:
-      - "8081:8081"
+      - "8081:8081"   # HTTP health
+      - "9090:9090"   # gRPC ReplayService
 
   analysis:
     build:

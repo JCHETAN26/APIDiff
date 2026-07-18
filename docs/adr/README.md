@@ -12,3 +12,4 @@ it in the PR that makes the decision.
 | [0004](./0004-ephemeral-per-pr-environments.md) | Ephemeral per-PR Kubernetes environments | Accepted |
 | [0005](./0005-generated-code-strategy.md) | How generated gRPC code is produced and stored | Accepted |
 | [0006](./0006-capture-time-sanitization.md) | Sanitize captured traffic at ingest, before storage | Accepted |
+| [0007](./0007-replay-diff-verdict.md) | Replay comparison and verdict semantics | Accepted |

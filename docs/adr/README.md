@@ -13,3 +13,4 @@ it in the PR that makes the decision.
 | [0005](./0005-generated-code-strategy.md) | How generated gRPC code is produced and stored | Accepted |
 | [0006](./0006-capture-time-sanitization.md) | Sanitize captured traffic at ingest, before storage | Accepted |
 | [0007](./0007-replay-diff-verdict.md) | Replay comparison and verdict semantics | Accepted |
+| [0008](./0008-regression-orchestration.md) | Regression run orchestration and GitHub intake | Accepted |

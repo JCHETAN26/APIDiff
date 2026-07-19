@@ -3,9 +3,13 @@ using ApiDiff.Api.Capture;
 using ApiDiff.Api.Features.Capture;
 using ApiDiff.Api.Features.Organizations;
 using ApiDiff.Api.Features.Projects;
+using ApiDiff.Api.Features.Runs;
 using ApiDiff.Api.Features.Scenarios;
 using ApiDiff.Api.Health;
+using ApiDiff.Api.Orchestration;
 using ApiDiff.Api.Persistence;
+using ApiDiff.Api.Webhooks;
+using ApiDiff.Contracts.Replay.V1;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,6 +24,23 @@ builder.Services.AddScoped<IAccessControl, AccessControl>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddSingleton(SanitizationOptions.Default);
 builder.Services.AddSingleton<ISanitizer, Sanitizer>();
+
+// Regression-run orchestration.
+builder.Services.Configure<GitHubOptions>(builder.Configuration.GetSection("GitHub"));
+builder.Services.Configure<OrchestrationOptions>(builder.Configuration.GetSection("Orchestration"));
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<IRunQueue, RunQueue>();
+builder.Services.AddScoped<IRunOrchestrator, RunOrchestrator>();
+builder.Services.AddScoped<IEnvironmentProvisioner, PlaceholderEnvironmentProvisioner>();
+builder.Services.AddScoped<IGitHubChecks, GitHubChecks>();
+builder.Services.AddScoped<IReplayClient, GrpcReplayClient>();
+builder.Services.AddGrpcClient<ReplayService.ReplayServiceClient>((sp, o) =>
+{
+    var address = sp.GetRequiredService<IConfiguration>()["Orchestration:ReplayEngineAddress"]
+        ?? "http://replay-engine:9090";
+    o.Address = new Uri(address);
+});
+builder.Services.AddHostedService<RunOrchestrationService>();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
@@ -45,6 +66,10 @@ api.MapOrganizationEndpoints();
 api.MapProjectEndpoints();
 api.MapScenarioEndpoints();
 api.MapCaptureEndpoints();
+api.MapRunEndpoints();
+
+// Webhooks are secured by HMAC signature, not the JWT scheme (anonymous).
+app.MapGitHubWebhook();
 
 await app.RunAsync();
 

@@ -1,3 +1,4 @@
+using ApiDiff.Api.Orchestration;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -10,11 +11,14 @@ using Xunit;
 namespace ApiDiff.Api.Tests.Infrastructure;
 
 /// <summary>
-/// Spins the API against a real Postgres (Testcontainers) and swaps the JWT
-/// scheme for <see cref="TestAuthHandler"/>. Startup migration builds the schema.
+/// Spins the API against a real Postgres (Testcontainers), swaps the JWT scheme
+/// for <see cref="TestAuthHandler"/>, and substitutes in-memory fakes for the
+/// external orchestration dependencies (replay engine, K8s, GitHub).
 /// </summary>
 public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    public const string WebhookSecret = "test-webhook-secret";
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
         .WithImage("postgres:16-alpine")
         .Build();
@@ -34,6 +38,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Postgres"] = _postgres.GetConnectionString(),
+                ["GitHub:WebhookSecret"] = WebhookSecret,
             });
         });
 
@@ -41,6 +46,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         {
             services.AddAuthentication(TestAuthHandler.SchemeName)
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
+
+            services.AddSingleton<FakeReplayClient>();
+            services.AddSingleton<IReplayClient>(sp => sp.GetRequiredService<FakeReplayClient>());
+            services.AddSingleton<FakeEnvironmentProvisioner>();
+            services.AddSingleton<IEnvironmentProvisioner>(sp => sp.GetRequiredService<FakeEnvironmentProvisioner>());
+            services.AddSingleton<RecordingGitHubChecks>();
+            services.AddSingleton<IGitHubChecks>(sp => sp.GetRequiredService<RecordingGitHubChecks>());
         });
     }
 }

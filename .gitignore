@@ -60,3 +60,6 @@ crash.log
 # ---- Build / logs ----
 *.log
 tmp/
+
+# TypeScript incremental build info
+*.tsbuildinfo

@@ -8,6 +8,7 @@ using ApiDiff.Api.Features.Scenarios;
 using ApiDiff.Api.Health;
 using ApiDiff.Api.Observability;
 using ApiDiff.Api.Orchestration;
+using ApiDiff.Api.Orchestration.GitHub;
 using ApiDiff.Api.Orchestration.Kubernetes;
 using ApiDiff.Api.Persistence;
 using k8s;
@@ -53,7 +54,18 @@ else
 {
     builder.Services.AddScoped<IEnvironmentProvisioner, PlaceholderEnvironmentProvisioner>();
 }
-builder.Services.AddScoped<IGitHubChecks, GitHubChecks>();
+// GitHub App Checks API when App credentials are configured; otherwise commit
+// statuses (which log when no token is set).
+var gitHubOptions = builder.Configuration.GetSection("GitHub").Get<GitHubOptions>() ?? new GitHubOptions();
+if (gitHubOptions.UsesApp)
+{
+    builder.Services.AddSingleton(TimeProvider.System);
+    builder.Services.AddScoped<IGitHubChecks, GitHubAppChecks>();
+}
+else
+{
+    builder.Services.AddScoped<IGitHubChecks, GitHubChecks>();
+}
 builder.Services.AddScoped<IReplayClient, GrpcReplayClient>();
 builder.Services.AddGrpcClient<ReplayService.ReplayServiceClient>((sp, o) =>
 {

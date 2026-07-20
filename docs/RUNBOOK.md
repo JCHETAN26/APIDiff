@@ -28,6 +28,12 @@
   `GitHub:WebhookSecret` (from Secret Manager). Rotate via Secret Manager and
   update the GitHub webhook config together.
 
+### GitHub checks not appearing
+- When `GitHub:AppId` + `GitHub:PrivateKeyPem` are set, runs post a **Check Run**
+  via the App (installation token). Verify the App is installed on the repo and
+  the private key is current. Without App creds, a commit **status** is posted if
+  `GitHub:Token` is set, otherwise the intended status is only logged.
+
 ### Database connection errors
 - Verify the `apidiff-db` secret (`connection` key) and Cloud SQL private IP
   reachability; check connection saturation against the SLO alert.

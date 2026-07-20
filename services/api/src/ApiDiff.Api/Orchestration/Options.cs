@@ -11,6 +11,18 @@ public sealed class GitHubOptions
 
     /// <summary>GitHub REST API base (overridable for GitHub Enterprise / tests).</summary>
     public string ApiBaseUrl { get; set; } = "https://api.github.com";
+
+    /// <summary>GitHub App id. When set with <see cref="PrivateKeyPem"/>, the App Checks API is used.</summary>
+    public string? AppId { get; set; }
+
+    /// <summary>PEM-encoded RSA private key for the GitHub App.</summary>
+    public string? PrivateKeyPem { get; set; }
+
+    /// <summary>Optional fixed installation id; when 0, it is resolved per repository.</summary>
+    public long InstallationId { get; set; }
+
+    /// <summary>True when the GitHub App credentials are configured.</summary>
+    public bool UsesApp => !string.IsNullOrWhiteSpace(AppId) && !string.IsNullOrWhiteSpace(PrivateKeyPem);
 }
 
 /// <summary>Regression-run orchestration settings (bound from "Orchestration").</summary>

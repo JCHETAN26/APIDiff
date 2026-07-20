@@ -19,10 +19,12 @@ runs that are still in progress.
   is non-terminal, stopping once it reaches `Completed`/`Failed`/`Cancelled`. No
   server-sent-events endpoint is required.
 - **Auth.** The client sends a bearer token (from `localStorage`) on every
-  request. The current sign-in screen accepts a pasted token for development;
-  production wires OIDC single sign-on (the API already validates JWTs from a
-  configured authority, ADR from Phase 2). The token seam is isolated in
-  `lib/session.ts` so swapping in an OIDC flow is local.
+  request. When `VITE_OIDC_AUTHORITY` + `VITE_OIDC_CLIENT_ID` are set, the login
+  screen runs a real **OIDC Authorization Code + PKCE** flow (`lib/oidc.ts`):
+  discovery, S256 challenge, a `state`-validated `/callback`, and token exchange
+  — the resulting token is what the API validates (Phase 2). Without OIDC config,
+  a pasted-token screen remains for local dev. The token seam is isolated in
+  `lib/session.ts`.
 
 ## Consequences
 

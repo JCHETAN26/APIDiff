@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
 import { RequireAuth, SessionProvider, useSession } from "./auth";
+import { CallbackPage } from "./pages/CallbackPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { RunPage } from "./pages/RunPage";
@@ -32,6 +33,7 @@ export default function App() {
         <Layout>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/callback" element={<CallbackPage />} />
             <Route
               path="/"
               element={

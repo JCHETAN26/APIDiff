@@ -40,7 +40,7 @@ files = ["src", "tests"]
 exclude = ["gen/"]
 
 [[tool.mypy.overrides]]
-module = ["apidiff.*"]
+module = ["apidiff.*", "grpc", "grpc.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
 

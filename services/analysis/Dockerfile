@@ -10,6 +10,6 @@ RUN pip install --no-cache-dir .
 
 # Generated gRPC stubs (the `apidiff` package) are on the path but not installed.
 ENV PYTHONPATH=/app/gen
-EXPOSE 8082
+EXPOSE 8082 9091
 USER nobody
 CMD ["python", "-m", "analysis"]

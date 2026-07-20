@@ -1,0 +1,32 @@
+{{- if .Values.provisioner.kubernetes }}
+# The API provisions ephemeral per-PR namespaces with a Deployment + Service and
+# tears them down, so it needs cluster-scoped rights over those objects.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: apidiff-provisioner
+  labels:
+    app.kubernetes.io/part-of: apidiff
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces", "services"]
+    verbs: ["get", "list", "create", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: apidiff-provisioner
+  labels:
+    app.kubernetes.io/part-of: apidiff
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: apidiff-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount.name }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

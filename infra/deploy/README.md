@@ -17,6 +17,14 @@ helm upgrade --install apidiff infra/deploy/apidiff \
 The API reads its Postgres connection string from the `apidiff-db` secret
 (key `connection`), synced from Secret Manager.
 
+### Kubernetes provisioner
+
+Set `--set provisioner.kubernetes=true` to have the API provision ephemeral
+per-PR environments on the cluster itself (instead of the placeholder). This
+grants the API a `ClusterRole` over namespaces/deployments/services and sets
+`Orchestration__Provisioner=kubernetes`. Tune the candidate image template and
+namespace pattern via the `Kubernetes` config section (see `appsettings.json`).
+
 ## Ephemeral per-PR environment (ADR 0004)
 
 The same chart runs the candidate build in an isolated namespace:

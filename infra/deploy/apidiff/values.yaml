@@ -15,6 +15,11 @@ serviceAccount:
 # typically synced from Secret Manager.
 dbSecretName: apidiff-db
 
+provisioner:
+  # When true, grant the API RBAC to manage per-PR namespaces and set the API to
+  # use the Kubernetes provisioner instead of the placeholder.
+  kubernetes: false
+
 services:
   api:
     image: api

@@ -10,12 +10,12 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-// ServerOptions returns gRPC server options. When TLS_CERT_FILE and TLS_KEY_FILE
+// Options returns gRPC server options. When TLS_CERT_FILE and TLS_KEY_FILE
 // are set, the server requires TLS; if TLS_CLIENT_CA_FILE is also set, it
 // requires and verifies client certificates (mTLS). Otherwise the server is
 // insecure (local/dev), matching the plaintext default in ADR 0011's cluster
 // where mTLS is provided by the mesh.
-func ServerOptions() ([]grpc.ServerOption, error) {
+func Options() ([]grpc.ServerOption, error) {
 	certFile := os.Getenv("TLS_CERT_FILE")
 	keyFile := os.Getenv("TLS_KEY_FILE")
 	if certFile == "" || keyFile == "" {

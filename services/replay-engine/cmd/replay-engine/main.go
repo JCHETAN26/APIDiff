@@ -45,7 +45,7 @@ func run(ctx context.Context) error {
 	}
 	defer func() { _ = shutdownTracing(context.Background()) }()
 
-	tlsOpts, err := server.ServerOptions()
+	tlsOpts, err := server.Options()
 	if err != nil {
 		return err
 	}

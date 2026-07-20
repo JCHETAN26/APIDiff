@@ -8,9 +8,9 @@ import (
 func TestServerOptions_InsecureWhenUnset(t *testing.T) {
 	t.Setenv("TLS_CERT_FILE", "")
 	t.Setenv("TLS_KEY_FILE", "")
-	opts, err := ServerOptions()
+	opts, err := Options()
 	if err != nil {
-		t.Fatalf("ServerOptions: %v", err)
+		t.Fatalf("Options: %v", err)
 	}
 	if opts != nil {
 		t.Errorf("expected no options when TLS is unset, got %d", len(opts))
@@ -22,9 +22,9 @@ func TestServerOptions_TLSFromEnv(t *testing.T) {
 	t.Setenv("TLS_CERT_FILE", certFile)
 	t.Setenv("TLS_KEY_FILE", keyFile)
 
-	opts, err := ServerOptions()
+	opts, err := Options()
 	if err != nil {
-		t.Fatalf("ServerOptions: %v", err)
+		t.Fatalf("Options: %v", err)
 	}
 	if len(opts) != 1 {
 		t.Fatalf("expected 1 TLS option, got %d", len(opts))
@@ -35,7 +35,7 @@ func TestServerOptions_BadCertErrors(t *testing.T) {
 	bad := filepath(t, "bad.pem", "not a cert")
 	t.Setenv("TLS_CERT_FILE", bad)
 	t.Setenv("TLS_KEY_FILE", bad)
-	if _, err := ServerOptions(); err == nil {
+	if _, err := Options(); err == nil {
 		t.Error("expected error for malformed cert")
 	}
 }

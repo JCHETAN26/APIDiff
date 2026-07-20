@@ -39,6 +39,10 @@ spec:
                 secretKeyRef:
                   name: {{ $.Values.dbSecretName }}
                   key: connection
+            {{- if $.Values.provisioner.kubernetes }}
+            - name: Orchestration__Provisioner
+              value: kubernetes
+            {{- end }}
           {{- end }}
           {{- if $svc.health }}
           readinessProbe:

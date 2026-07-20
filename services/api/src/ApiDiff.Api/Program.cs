@@ -8,7 +8,9 @@ using ApiDiff.Api.Features.Scenarios;
 using ApiDiff.Api.Health;
 using ApiDiff.Api.Observability;
 using ApiDiff.Api.Orchestration;
+using ApiDiff.Api.Orchestration.Kubernetes;
 using ApiDiff.Api.Persistence;
+using k8s;
 using ApiDiff.Api.Webhooks;
 using ApiDiff.Contracts.Analysis.V1;
 using ApiDiff.Contracts.Replay.V1;
@@ -34,7 +36,23 @@ builder.Services.Configure<OrchestrationOptions>(builder.Configuration.GetSectio
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IRunQueue, RunQueue>();
 builder.Services.AddScoped<IRunOrchestrator, RunOrchestrator>();
-builder.Services.AddScoped<IEnvironmentProvisioner, PlaceholderEnvironmentProvisioner>();
+builder.Services.Configure<KubernetesProvisionerOptions>(builder.Configuration.GetSection("Kubernetes"));
+if (string.Equals(builder.Configuration["Orchestration:Provisioner"], "kubernetes", StringComparison.OrdinalIgnoreCase))
+{
+    // In-cluster config when running on GKE; falls back to the local kubeconfig.
+    builder.Services.AddSingleton<IKubernetes>(_ =>
+    {
+        var config = KubernetesClientConfiguration.IsInCluster()
+            ? KubernetesClientConfiguration.InClusterConfig()
+            : KubernetesClientConfiguration.BuildConfigFromConfigFile();
+        return new k8s.Kubernetes(config);
+    });
+    builder.Services.AddScoped<IEnvironmentProvisioner, KubernetesEnvironmentProvisioner>();
+}
+else
+{
+    builder.Services.AddScoped<IEnvironmentProvisioner, PlaceholderEnvironmentProvisioner>();
+}
 builder.Services.AddScoped<IGitHubChecks, GitHubChecks>();
 builder.Services.AddScoped<IReplayClient, GrpcReplayClient>();
 builder.Services.AddGrpcClient<ReplayService.ReplayServiceClient>((sp, o) =>

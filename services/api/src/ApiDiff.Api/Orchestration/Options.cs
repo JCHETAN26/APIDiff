@@ -27,4 +27,23 @@ public sealed class OrchestrationOptions
 
     /// <summary>Template for the ephemeral candidate environment URL; {pr} is substituted.</summary>
     public string CandidateBaseUrlTemplate { get; set; } = "http://pr-{pr}.candidate.svc.cluster.local";
+
+    /// <summary>Which provisioner to use: "placeholder" (default) or "kubernetes".</summary>
+    public string Provisioner { get; set; } = "placeholder";
+}
+
+/// <summary>Settings for the Kubernetes ephemeral per-PR provisioner.</summary>
+public sealed class KubernetesProvisionerOptions
+{
+    /// <summary>Namespace template for the per-PR environment; {pr} is substituted.</summary>
+    public string NamespaceTemplate { get; set; } = "apidiff-pr-{pr}";
+
+    /// <summary>Candidate container image template; {sha} and {pr} are substituted.</summary>
+    public string CandidateImageTemplate { get; set; } = "candidate:{sha}";
+
+    /// <summary>Port the candidate service listens on.</summary>
+    public int CandidatePort { get; set; } = 8080;
+
+    /// <summary>How long to wait for the candidate deployment to become available.</summary>
+    public int ReadyTimeoutSeconds { get; set; } = 180;
 }

@@ -1,0 +1,6 @@
+project_id       = "my-gcp-project"
+region           = "us-central1"
+environment      = "staging"
+gke_node_count   = 2
+gke_machine_type = "e2-standard-2"
+postgres_tier    = "db-custom-1-3840"

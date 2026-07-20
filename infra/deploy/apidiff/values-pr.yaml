@@ -1,0 +1,15 @@
+# Overlay for an ephemeral per-PR candidate environment (ADR 0004). Deploy with:
+#   helm install apidiff-pr-<n> ./apidiff -n pr-<n> --create-namespace \
+#     -f values-pr.yaml --set image.tag=<commit-sha>
+serviceAccount:
+  gcpServiceAccount: ""
+
+services:
+  api:
+    replicas: 1
+  replay-engine:
+    replicas: 1
+  analysis:
+    replicas: 1
+  dashboard:
+    replicas: 1

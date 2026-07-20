@@ -13,10 +13,12 @@ import (
 	"os/signal"
 	"syscall"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 
 	replayv1 "github.com/apidiff/replay-engine/gen/apidiff/replay/v1"
 	"github.com/apidiff/replay-engine/internal/health"
+	"github.com/apidiff/replay-engine/internal/observability"
 	"github.com/apidiff/replay-engine/internal/replay"
 	"github.com/apidiff/replay-engine/internal/server"
 )
@@ -37,7 +39,19 @@ func run(ctx context.Context) error {
 	grpcAddr := ":" + envOr("GRPC_PORT", "9090")
 	httpAddr := ":" + envOr("PORT", "8081")
 
-	grpcServer := grpc.NewServer()
+	shutdownTracing, err := observability.Setup(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
+
+	tlsOpts, err := server.Options()
+	if err != nil {
+		return err
+	}
+	grpcOpts := append(tlsOpts, grpc.StatsHandler(otelgrpc.NewServerHandler()))
+
+	grpcServer := grpc.NewServer(grpcOpts...)
 	replayv1.RegisterReplayServiceServer(grpcServer, server.New(replay.NewEngine()))
 
 	grpcListener, err := net.Listen("tcp", grpcAddr)

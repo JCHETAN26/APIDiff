@@ -1,0 +1,28 @@
+# Minimal OpenTelemetry Collector for local development. Receives OTLP over gRPC
+# and logs traces/metrics to the console. Point a real backend (Tempo, Jaeger,
+# Cloud Trace) at the exporters in staging/prod.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+
+exporters:
+  debug:
+    verbosity: normal
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]

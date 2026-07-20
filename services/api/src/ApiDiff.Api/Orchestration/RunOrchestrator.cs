@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Text.Json;
 using ApiDiff.Api.Auth;
 using ApiDiff.Api.Domain;
+using ApiDiff.Api.Observability;
 using ApiDiff.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -34,6 +36,12 @@ public sealed class RunOrchestrator(
         var project = run.Project;
         var detailsUrl = $"{options.Value.DashboardBaseUrl.TrimEnd('/')}/runs/{run.Id}";
         EnvironmentHandle? env = null;
+
+        // A single span per run correlates the whole flow end-to-end by run_id.
+        using var activity = Telemetry.ActivitySource.StartActivity("regression.run");
+        activity?.SetTag("apidiff.run_id", run.Id.ToString());
+        activity?.SetTag("apidiff.project_id", project.Id.ToString());
+        activity?.SetTag("apidiff.pr_number", run.PullRequestNumber);
 
         try
         {
@@ -83,10 +91,17 @@ public sealed class RunOrchestrator(
                 ? $"All {outcomes.Count} scenarios passed."
                 : $"{regressions} of {outcomes.Count} scenarios regressed.";
             await githubChecks.PostAsync(run, project, success, summary, detailsUrl, ct);
+
+            var outcomeTag = success ? "success" : "regression";
+            activity?.SetTag("apidiff.outcome", outcomeTag);
+            Telemetry.RunsCompleted.Add(1, new KeyValuePair<string, object?>("outcome", outcomeTag));
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Run {RunId} failed", runId);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetTag("apidiff.outcome", "failed");
+            Telemetry.RunsCompleted.Add(1, new KeyValuePair<string, object?>("outcome", "failed"));
             run.Status = RunStatus.Failed;
             run.CompletedAt = DateTimeOffset.UtcNow;
             audit.Append(project.OrganizationId, null, "run.failed", nameof(RegressionRun), run.Id.ToString(),

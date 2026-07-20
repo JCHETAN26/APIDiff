@@ -8,6 +8,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from analysis.health import report
+from analysis.observability import setup_tracing
 from analysis.server import create_server
 
 
@@ -35,6 +36,7 @@ def main() -> None:
     grpc_port = int(os.environ.get("GRPC_PORT", "9091"))
     http_port = int(os.environ.get("PORT", "8082"))
 
+    setup_tracing()
     server = create_server(grpc_port)
     server.start()
 

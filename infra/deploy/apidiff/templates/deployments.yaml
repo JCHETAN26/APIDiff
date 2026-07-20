@@ -1,0 +1,63 @@
+{{- range $name, $svc := .Values.services }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    app.kubernetes.io/part-of: apidiff
+spec:
+  replicas: {{ $svc.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $name }}
+        app.kubernetes.io/part-of: apidiff
+    spec:
+      {{- if $svc.useServiceAccount }}
+      serviceAccountName: {{ $.Values.serviceAccount.name }}
+      {{- end }}
+      containers:
+        - name: {{ $name }}
+          image: "{{ $.Values.image.registry }}/{{ $svc.image }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ $svc.port }}
+            {{- if $svc.grpcPort }}
+            - name: grpc
+              containerPort: {{ $svc.grpcPort }}
+            {{- end }}
+          {{- if $svc.useDatabase }}
+          env:
+            - name: ConnectionStrings__Postgres
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.dbSecretName }}
+                  key: connection
+          {{- end }}
+          {{- if $svc.health }}
+          readinessProbe:
+            httpGet:
+              path: {{ $svc.health }}
+              port: {{ $svc.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: {{ $svc.health }}
+              port: {{ $svc.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          {{- end }}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+{{- end }}

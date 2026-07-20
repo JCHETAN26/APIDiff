@@ -1,0 +1,42 @@
+environment: staging
+
+image:
+  # Artifact Registry base, e.g. us-central1-docker.pkg.dev/<project>/apidiff
+  registry: REGISTRY
+  tag: latest
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  name: apidiff-api
+  # GCP service account for Workload Identity, e.g. apidiff-staging-api@<project>.iam.gserviceaccount.com
+  gcpServiceAccount: ""
+
+# Kubernetes secret (key "connection") holding the Postgres connection string,
+# typically synced from Secret Manager.
+dbSecretName: apidiff-db
+
+services:
+  api:
+    image: api
+    port: 8080
+    replicas: 2
+    health: /healthz
+    useDatabase: true
+    useServiceAccount: true
+  replay-engine:
+    image: replay-engine
+    port: 8081
+    grpcPort: 9090
+    replicas: 2
+    health: /healthz
+  analysis:
+    image: analysis
+    port: 8082
+    grpcPort: 9091
+    replicas: 1
+    health: /healthz
+  dashboard:
+    image: dashboard
+    port: 80
+    replicas: 2
+    health: /

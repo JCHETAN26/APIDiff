@@ -1,0 +1,71 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write # for Workload Identity Federation
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # No-op until deployment is configured (set repo variable DEPLOY_ENABLED=true
+    # and the GCP_*, GKE_*, GAR_*, API_GSA secrets/variables below).
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      REGISTRY: ${{ vars.GAR_REGISTRY }}
+      TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "$(echo "$REGISTRY" | cut -d/ -f1)" --quiet
+
+      - name: Build & push images
+        run: |
+          set -e
+          docker build -t "$REGISTRY/api:$TAG"           -f services/api/Dockerfile .
+          docker build -t "$REGISTRY/replay-engine:$TAG" services/replay-engine
+          docker build -t "$REGISTRY/analysis:$TAG"      services/analysis
+          docker build -t "$REGISTRY/dashboard:$TAG"     web/dashboard
+          docker push "$REGISTRY/api:$TAG"
+          docker push "$REGISTRY/replay-engine:$TAG"
+          docker push "$REGISTRY/analysis:$TAG"
+          docker push "$REGISTRY/dashboard:$TAG"
+
+      - uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ vars.GKE_CLUSTER }}
+          location: ${{ vars.GKE_LOCATION }}
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: "v3.16.3"
+
+      - name: Deploy to staging (roll back on failed health gate)
+        run: |
+          helm upgrade --install apidiff infra/deploy/apidiff \
+            --namespace apidiff --create-namespace \
+            --set image.registry="$REGISTRY" \
+            --set image.tag="$TAG" \
+            --set serviceAccount.gcpServiceAccount="${{ vars.API_GSA }}" \
+            --wait --timeout 5m \
+            || { helm rollback apidiff --namespace apidiff; exit 1; }
+
+      - name: Verify rollout
+        run: kubectl -n apidiff rollout status deploy/api --timeout=120s

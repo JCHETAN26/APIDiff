@@ -1,0 +1,41 @@
+name: Infra
+
+on:
+  push:
+    branches: [main]
+    paths: ["infra/**", ".github/workflows/infra.yml"]
+  pull_request:
+    paths: ["infra/**", ".github/workflows/infra.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+      - name: Format check
+        run: terraform fmt -check -recursive
+      - name: Init (no backend)
+        run: terraform init -backend=false
+      - name: Validate
+        run: terraform validate
+
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: "v3.16.3"
+      - name: Lint chart
+        run: helm lint infra/deploy/apidiff
+      - name: Render templates
+        run: helm template apidiff infra/deploy/apidiff --set image.registry=example --set image.tag=ci > /dev/null

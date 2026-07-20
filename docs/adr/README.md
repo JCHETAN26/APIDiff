@@ -16,3 +16,4 @@ it in the PR that makes the decision.
 | [0008](./0008-regression-orchestration.md) | Regression run orchestration and GitHub intake | Accepted |
 | [0009](./0009-analysis-heuristics.md) | Scenario clustering and failure-explanation heuristics | Accepted |
 | [0010](./0010-dashboard-data-and-auth.md) | Dashboard data fetching and authentication | Accepted |
+| [0011](./0011-deployment-and-cicd.md) | Deployment topology and CI/CD | Accepted |

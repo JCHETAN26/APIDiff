@@ -6,6 +6,7 @@ using ApiDiff.Api.Features.Projects;
 using ApiDiff.Api.Features.Runs;
 using ApiDiff.Api.Features.Scenarios;
 using ApiDiff.Api.Health;
+using ApiDiff.Api.Observability;
 using ApiDiff.Api.Orchestration;
 using ApiDiff.Api.Persistence;
 using ApiDiff.Api.Webhooks;
@@ -18,6 +19,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<ApiDiffDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
 
+builder.Services.AddApiDiffTelemetry(builder.Configuration);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddApiDiffAuth(builder.Configuration);
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();

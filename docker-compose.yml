@@ -4,8 +4,18 @@
 #
 # The dashboard runs separately in dev mode: `cd web/dashboard && npm run dev`.
 # Kubernetes uses HTTP liveness probes against each service's /healthz.
+#
+# Telemetry: services export OTLP to the otel-collector, which logs to console.
 
 services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.115.1
+    command: ["--config=/etc/otel/collector.yaml"]
+    volumes:
+      - ./infra/otel/collector.yaml:/etc/otel/collector.yaml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC
+
   postgres:
     image: postgres:16-alpine
     environment:
@@ -30,6 +40,7 @@ services:
     environment:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=apidiff;Username=apidiff;Password=apidiff
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "8080:8080"
     depends_on:
@@ -42,6 +53,7 @@ services:
     environment:
       PORT: "8081"
       GRPC_PORT: "9090"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "8081:8081"   # HTTP health
       - "9090:9090"   # gRPC ReplayService
@@ -52,6 +64,7 @@ services:
     environment:
       PORT: "8082"
       GRPC_PORT: "9091"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "8082:8082"   # HTTP health
       - "9091:9091"   # gRPC AnalysisService

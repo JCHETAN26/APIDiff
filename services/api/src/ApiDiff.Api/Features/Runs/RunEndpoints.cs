@@ -12,6 +12,11 @@ public sealed record RunResponse(
 
 public sealed record RunDetailResponse(RunResponse Run, int TotalResults, int Regressions);
 
+public sealed record ReplayResultResponse(
+    Guid Id, Guid ScenarioId, string ScenarioMethod, string ScenarioPath, string Verdict,
+    string DiffJson, long BaselineLatencyMs, long CandidateLatencyMs, long LatencyDeltaMs,
+    string? Error, DateTimeOffset CreatedAt);
+
 /// <summary>Read-only access to regression runs (the report surface).</summary>
 public static class RunEndpoints
 {
@@ -72,6 +77,55 @@ public static class RunEndpoints
                       r.Verdict == RunVerdict.Error), ct);
 
             return TypedResults.Ok(new RunDetailResponse(ToResponse(run), total, regressions));
+        });
+
+        // Per-scenario replay results (diffs + latencies) for the run report.
+        runs.MapGet("/{runId:guid}/results", async Task<Results<Ok<List<ReplayResultResponse>>, ForbidHttpResult, NotFound>> (
+            Guid organizationId,
+            Guid projectId,
+            Guid runId,
+            ICurrentUserService currentUser,
+            IAccessControl access,
+            ApiDiffDbContext db,
+            CancellationToken ct) =>
+        {
+            var user = await currentUser.GetOrProvisionAsync(ct);
+            if (!await access.HasRoleAsync(user.Id, organizationId, MembershipRole.Viewer, ct))
+            {
+                return TypedResults.Forbid();
+            }
+
+            var runExists = await db.RegressionRuns.AnyAsync(
+                r => r.Id == runId && r.ProjectId == projectId && r.Project.OrganizationId == organizationId, ct);
+            if (!runExists)
+            {
+                return TypedResults.NotFound();
+            }
+
+            var rows = await db.ReplayResults
+                .Where(r => r.RunId == runId)
+                .OrderByDescending(r => r.LatencyDeltaMs)
+                .Select(r => new
+                {
+                    r.Id,
+                    r.ScenarioId,
+                    r.Scenario.Method,
+                    r.Scenario.Path,
+                    r.Verdict,
+                    r.DiffJson,
+                    r.BaselineLatencyMs,
+                    r.CandidateLatencyMs,
+                    r.LatencyDeltaMs,
+                    r.Error,
+                    r.CreatedAt,
+                })
+                .ToListAsync(ct);
+
+            var results = rows.Select(x => new ReplayResultResponse(
+                x.Id, x.ScenarioId, x.Method, x.Path, x.Verdict.ToString(), x.DiffJson,
+                x.BaselineLatencyMs, x.CandidateLatencyMs, x.LatencyDeltaMs, x.Error, x.CreatedAt)).ToList();
+
+            return TypedResults.Ok(results);
         });
 
         return group;

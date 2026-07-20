@@ -21,6 +21,10 @@ export default [
       // TypeScript's compiler already resolves identifiers, so the core
       // no-undef rule is redundant (and flags DOM globals like `document`).
       "no-undef": "off",
+      // The core rule misfires on TS type-annotation parameter names; use the
+      // TypeScript-aware version instead.
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
   },
 ];

@@ -9,6 +9,7 @@ using ApiDiff.Api.Health;
 using ApiDiff.Api.Orchestration;
 using ApiDiff.Api.Persistence;
 using ApiDiff.Api.Webhooks;
+using ApiDiff.Contracts.Analysis.V1;
 using ApiDiff.Contracts.Replay.V1;
 using Microsoft.EntityFrameworkCore;
 
@@ -38,6 +39,13 @@ builder.Services.AddGrpcClient<ReplayService.ReplayServiceClient>((sp, o) =>
 {
     var address = sp.GetRequiredService<IConfiguration>()["Orchestration:ReplayEngineAddress"]
         ?? "http://replay-engine:9090";
+    o.Address = new Uri(address);
+});
+builder.Services.AddScoped<IAnalysisClient, GrpcAnalysisClient>();
+builder.Services.AddGrpcClient<AnalysisService.AnalysisServiceClient>((sp, o) =>
+{
+    var address = sp.GetRequiredService<IConfiguration>()["Orchestration:AnalysisServiceAddress"]
+        ?? "http://analysis:9091";
     o.Address = new Uri(address);
 });
 builder.Services.AddHostedService<RunOrchestrationService>();

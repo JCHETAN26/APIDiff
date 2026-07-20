@@ -182,3 +182,14 @@ th {
 .result .latency {
   margin: 0.35rem 0 0.6rem;
 }
+
+.explanation {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.explanation:last-child {
+  border-bottom: none;
+}
+.explanation p {
+  margin: 0.25rem 0;
+}

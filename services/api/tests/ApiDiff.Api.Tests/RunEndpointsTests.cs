@@ -60,4 +60,32 @@ public class RunEndpointsTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal(30, results[0].LatencyDeltaMs);
         Assert.Contains("total", results[0].DiffJson);
     }
+
+    [Fact]
+    public async Task Run_Explanations_OrderedBySeverity()
+    {
+        var client = ClientFor("owner-" + Guid.NewGuid());
+        var org = await (await client.PostAsJsonAsync("/api/v1/organizations",
+            new CreateOrganizationRequest("Acme", Slug("acme")))).Content.ReadFromJsonAsync<OrganizationResponse>();
+        var project = await (await client.PostAsJsonAsync($"/api/v1/organizations/{org!.Id}/projects",
+            new CreateProjectRequest("Orders", Slug("orders"), "acme/orders", "https://baseline.test")))
+            .Content.ReadFromJsonAsync<ProjectResponse>();
+
+        var runId = Guid.NewGuid();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApiDiffDbContext>();
+            db.RegressionRuns.Add(new RegressionRun { Id = runId, ProjectId = project!.Id, PullRequestNumber = 1, CommitSha = "x", Status = RunStatus.Completed, CreatedAt = DateTimeOffset.UtcNow });
+            db.RunExplanations.Add(new RunExplanation { Id = Guid.NewGuid(), RunId = runId, Title = "Low", Detail = "d", ScenarioIdsJson = "[]", Severity = 0.5, LikelyCause = "changed field", CreatedAt = DateTimeOffset.UtcNow });
+            db.RunExplanations.Add(new RunExplanation { Id = Guid.NewGuid(), RunId = runId, Title = "High", Detail = "d", ScenarioIdsJson = """["s1","s2"]""", Severity = 0.95, LikelyCause = "request error", CreatedAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        var explanations = await client.GetFromJsonAsync<List<ExplanationResponse>>(
+            $"/api/v1/organizations/{org.Id}/projects/{project!.Id}/runs/{runId}/explanations");
+
+        Assert.Equal(2, explanations!.Count);
+        Assert.Equal("High", explanations[0].Title);
+        Assert.Equal(new[] { "s1", "s2" }, explanations[0].ScenarioIds);
+    }
 }

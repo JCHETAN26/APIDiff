@@ -49,6 +49,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
             services.AddSingleton<FakeReplayClient>();
             services.AddSingleton<IReplayClient>(sp => sp.GetRequiredService<FakeReplayClient>());
+            services.AddSingleton<FakeAnalysisClient>();
+            services.AddSingleton<IAnalysisClient>(sp => sp.GetRequiredService<FakeAnalysisClient>());
             services.AddSingleton<FakeEnvironmentProvisioner>();
             services.AddSingleton<IEnvironmentProvisioner>(sp => sp.GetRequiredService<FakeEnvironmentProvisioner>());
             services.AddSingleton<RecordingGitHubChecks>();

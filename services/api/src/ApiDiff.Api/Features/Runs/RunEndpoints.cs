@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ApiDiff.Api.Auth;
 using ApiDiff.Api.Domain;
 using ApiDiff.Api.Persistence;
@@ -16,6 +17,9 @@ public sealed record ReplayResultResponse(
     Guid Id, Guid ScenarioId, string ScenarioMethod, string ScenarioPath, string Verdict,
     string DiffJson, long BaselineLatencyMs, long CandidateLatencyMs, long LatencyDeltaMs,
     string? Error, DateTimeOffset CreatedAt);
+
+public sealed record ExplanationResponse(
+    Guid Id, string Title, string Detail, IReadOnlyList<string> ScenarioIds, double Severity, string LikelyCause);
 
 /// <summary>Read-only access to regression runs (the report surface).</summary>
 public static class RunEndpoints
@@ -126,6 +130,42 @@ public static class RunEndpoints
                 x.BaselineLatencyMs, x.CandidateLatencyMs, x.LatencyDeltaMs, x.Error, x.CreatedAt)).ToList();
 
             return TypedResults.Ok(results);
+        });
+
+        // Ranked failure explanations from the analysis service.
+        runs.MapGet("/{runId:guid}/explanations", async Task<Results<Ok<List<ExplanationResponse>>, ForbidHttpResult, NotFound>> (
+            Guid organizationId,
+            Guid projectId,
+            Guid runId,
+            ICurrentUserService currentUser,
+            IAccessControl access,
+            ApiDiffDbContext db,
+            CancellationToken ct) =>
+        {
+            var user = await currentUser.GetOrProvisionAsync(ct);
+            if (!await access.HasRoleAsync(user.Id, organizationId, MembershipRole.Viewer, ct))
+            {
+                return TypedResults.Forbid();
+            }
+
+            var runExists = await db.RegressionRuns.AnyAsync(
+                r => r.Id == runId && r.ProjectId == projectId && r.Project.OrganizationId == organizationId, ct);
+            if (!runExists)
+            {
+                return TypedResults.NotFound();
+            }
+
+            var rows = await db.RunExplanations
+                .Where(x => x.RunId == runId)
+                .OrderByDescending(x => x.Severity)
+                .ToListAsync(ct);
+
+            var explanations = rows.Select(x => new ExplanationResponse(
+                x.Id, x.Title, x.Detail,
+                JsonSerializer.Deserialize<List<string>>(x.ScenarioIdsJson) ?? [],
+                x.Severity, x.LikelyCause)).ToList();
+
+            return TypedResults.Ok(explanations);
         });
 
         return group;

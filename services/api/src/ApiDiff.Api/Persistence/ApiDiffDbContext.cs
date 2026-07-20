@@ -17,6 +17,7 @@ public class ApiDiffDbContext(DbContextOptions<ApiDiffDbContext> options) : DbCo
     public DbSet<ScenarioCluster> ScenarioClusters => Set<ScenarioCluster>();
     public DbSet<RegressionRun> RegressionRuns => Set<RegressionRun>();
     public DbSet<ReplayResult> ReplayResults => Set<ReplayResult>();
+    public DbSet<RunExplanation> RunExplanations => Set<RunExplanation>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -102,6 +103,17 @@ public class ApiDiffDbContext(DbContextOptions<ApiDiffDbContext> options) : DbCo
             e.HasOne(x => x.Scenario).WithMany()
                 .HasForeignKey(x => x.ScenarioId).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => new { x.RunId, x.ScenarioId }).IsUnique();
+        });
+
+        b.Entity<RunExplanation>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Title).HasMaxLength(300).IsRequired();
+            e.Property(x => x.LikelyCause).HasMaxLength(100);
+            e.Property(x => x.ScenarioIdsJson).HasColumnType("jsonb");
+            e.HasOne(x => x.Run).WithMany()
+                .HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.RunId, x.Severity });
         });
 
         b.Entity<AuditLog>(e =>

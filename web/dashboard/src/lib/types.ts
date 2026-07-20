@@ -56,6 +56,15 @@ export type Verdict =
   | "PerfRegression"
   | "Error";
 
+export interface Explanation {
+  id: string;
+  title: string;
+  detail: string;
+  scenarioIds: string[];
+  severity: number;
+  likelyCause: string;
+}
+
 export interface ReplayResult {
   id: string;
   scenarioId: string;

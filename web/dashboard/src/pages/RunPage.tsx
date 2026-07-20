@@ -4,13 +4,14 @@ import { DiffViewer } from "../components/DiffViewer";
 import { AsyncView, StatusBadge, VerdictBadge } from "../components/ui";
 import { api } from "../lib/api";
 import { formatLatencyDelta, isTerminal } from "../lib/format";
-import type { ReplayResult, RunDetail } from "../lib/types";
+import type { Explanation, ReplayResult, RunDetail } from "../lib/types";
 import { useAsync } from "../lib/useAsync";
 
 export function RunPage() {
   const { orgId = "", projectId = "", runId = "" } = useParams();
   const detail = useAsync(() => api.run(orgId, projectId, runId), [orgId, projectId, runId]);
   const results = useAsync(() => api.results(orgId, projectId, runId), [orgId, projectId, runId]);
+  const explanations = useAsync(() => api.explanations(orgId, projectId, runId), [orgId, projectId, runId]);
 
   const terminal = detail.data ? isTerminal(detail.data.run.status) : false;
 
@@ -20,6 +21,7 @@ export function RunPage() {
   reloadRef.current = () => {
     detail.reload();
     results.reload();
+    explanations.reload();
   };
   useEffect(() => {
     if (terminal) return;
@@ -33,8 +35,32 @@ export function RunPage() {
         ← All runs
       </Link>
       <AsyncView state={detail}>{(data) => <RunHeader detail={data} />}</AsyncView>
+      <AsyncView state={explanations}>{(items) => <Analysis items={items} />}</AsyncView>
       <AsyncView state={results}>{(items) => <Results items={items} />}</AsyncView>
     </section>
+  );
+}
+
+function Analysis({ items }: { items: Explanation[] }) {
+  if (items.length === 0) {
+    return null;
+  }
+  return (
+    <div className="card">
+      <h2>Analysis</h2>
+      {items.map((item) => (
+        <div key={item.id} className="explanation">
+          <div className="row">
+            <h3>{item.title}</h3>
+            <span className="badge badge-fail">{Math.round(item.severity * 100)}%</span>
+          </div>
+          <p className="muted">
+            {item.likelyCause} · {item.scenarioIds.length} scenario(s)
+          </p>
+          {item.detail ? <p>{item.detail}</p> : null}
+        </div>
+      ))}
+    </div>
   );
 }
 

@@ -141,4 +141,44 @@ public class OrchestratorTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.False(check.Success);
         Assert.True(provisioner.TornDown > teardownBefore);
     }
+
+    [Fact]
+    public async Task Regression_PersistsAnalysisExplanations()
+    {
+        var replay = factory.Services.GetRequiredService<FakeReplayClient>();
+        var analysis = factory.Services.GetRequiredService<FakeAnalysisClient>();
+        analysis.Behavior = f => [new ExplanationDto("Field total changed", "detail", f.Select(x => x.ScenarioId.ToString()).ToList(), 0.8, "changed field")];
+        replay.Behavior = s => s.Select(x => new ReplayOutcome(x.Id, RunVerdict.BehavioralRegression, "{}", 10, 12, 2, null)).ToList();
+
+        var (runId, _, _) = await SeedRunAsync(2);
+
+        await ExecuteAsync(runId);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDiffDbContext>();
+        var explanations = await db.RunExplanations.Where(x => x.RunId == runId).ToListAsync();
+        var explanation = Assert.Single(explanations);
+        Assert.Equal("Field total changed", explanation.Title);
+        Assert.Equal("changed field", explanation.LikelyCause);
+    }
+
+    [Fact]
+    public async Task AnalysisFailure_DoesNotFailRun()
+    {
+        var replay = factory.Services.GetRequiredService<FakeReplayClient>();
+        var analysis = factory.Services.GetRequiredService<FakeAnalysisClient>();
+        replay.Behavior = s => s.Select(x => new ReplayOutcome(x.Id, RunVerdict.BehavioralRegression, "{}", 10, 12, 2, null)).ToList();
+        analysis.Behavior = _ => throw new InvalidOperationException("analysis down");
+
+        var (runId, _, _) = await SeedRunAsync(1);
+
+        await ExecuteAsync(runId);
+        analysis.Behavior = f => f.Count == 0 ? [] : [new ExplanationDto("x", "y", [], 0.5, "z")];
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDiffDbContext>();
+        var run = await db.RegressionRuns.SingleAsync(r => r.Id == runId);
+        Assert.Equal(RunStatus.Completed, run.Status);
+        Assert.Empty(await db.RunExplanations.Where(x => x.RunId == runId).ToListAsync());
+    }
 }

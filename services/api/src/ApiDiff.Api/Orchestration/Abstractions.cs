@@ -40,6 +40,21 @@ public interface IGitHubChecks
     Task PostAsync(RegressionRun run, Project project, bool success, string summary, string detailsUrl, CancellationToken ct);
 }
 
+/// <summary>A ranked failure explanation returned by the analysis service.</summary>
+public sealed record ExplanationDto(
+    string Title,
+    string Detail,
+    IReadOnlyList<string> ScenarioIds,
+    double Severity,
+    string LikelyCause);
+
+/// <summary>Calls the Python analysis service to explain a run's failures.</summary>
+public interface IAnalysisClient
+{
+    Task<IReadOnlyList<ExplanationDto>> ExplainAsync(
+        string runId, IReadOnlyList<ReplayOutcome> failures, CancellationToken ct);
+}
+
 /// <summary>In-process queue of runs awaiting orchestration.</summary>
 public interface IRunQueue
 {

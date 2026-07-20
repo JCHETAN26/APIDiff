@@ -1,5 +1,5 @@
 import { getToken } from "./session";
-import type { Organization, Project, ReplayResult, Run, RunDetail } from "./types";
+import type { Explanation, Organization, Project, ReplayResult, Run, RunDetail } from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8080";
 
@@ -34,4 +34,6 @@ export const api = {
     get<RunDetail>(`/organizations/${orgId}/projects/${projectId}/runs/${runId}`),
   results: (orgId: string, projectId: string, runId: string) =>
     get<ReplayResult[]>(`/organizations/${orgId}/projects/${projectId}/runs/${runId}/results`),
+  explanations: (orgId: string, projectId: string, runId: string) =>
+    get<Explanation[]>(`/organizations/${orgId}/projects/${projectId}/runs/${runId}/explanations`),
 };

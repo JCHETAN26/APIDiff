@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ApiDiff.Api.Auth;
 using ApiDiff.Api.Domain;
 using ApiDiff.Api.Persistence;
@@ -15,6 +16,7 @@ public sealed class RunOrchestrator(
     ApiDiffDbContext db,
     IEnvironmentProvisioner provisioner,
     IReplayClient replayClient,
+    IAnalysisClient analysisClient,
     IGitHubChecks githubChecks,
     IAuditService audit,
     IOptions<OrchestrationOptions> options,
@@ -64,9 +66,9 @@ public sealed class RunOrchestrator(
                 });
             }
 
-            // Analysis (clustering/explanation) plugs in here in Phase 6.
             run.Status = RunStatus.Analyzing;
             await db.SaveChangesAsync(ct);
+            await AnalyzeAsync(run, outcomes, ct);
 
             var regressions = outcomes.Count(o => IsRegression(o.Verdict));
             var success = regressions == 0;
@@ -113,6 +115,44 @@ public sealed class RunOrchestrator(
                     logger.LogError(teardownEx, "Teardown failed for run {RunId}", runId);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Best-effort: ask the analysis service to explain the failures and persist
+    /// the ranked shortlist. Analysis errors never fail the run.
+    /// </summary>
+    private async Task AnalyzeAsync(RegressionRun run, IReadOnlyList<ReplayOutcome> outcomes, CancellationToken ct)
+    {
+        var failures = outcomes.Where(o => IsRegression(o.Verdict)).ToList();
+        if (failures.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var explanations = await analysisClient.ExplainAsync(run.Id.ToString(), failures, ct);
+            foreach (var e in explanations)
+            {
+                db.RunExplanations.Add(new RunExplanation
+                {
+                    Id = Guid.NewGuid(),
+                    RunId = run.Id,
+                    Title = e.Title,
+                    Detail = e.Detail,
+                    ScenarioIdsJson = JsonSerializer.Serialize(e.ScenarioIds),
+                    Severity = e.Severity,
+                    LikelyCause = e.LikelyCause,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                });
+            }
+
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Analysis failed for run {RunId}; continuing without explanations", run.Id);
         }
     }
 

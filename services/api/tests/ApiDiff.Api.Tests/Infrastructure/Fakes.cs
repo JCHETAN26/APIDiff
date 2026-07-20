@@ -40,6 +40,20 @@ public sealed class FakeEnvironmentProvisioner : IEnvironmentProvisioner
     }
 }
 
+/// <summary>Fake analysis client whose behavior tests control.</summary>
+public sealed class FakeAnalysisClient : IAnalysisClient
+{
+    /// <summary>Maps failing outcomes to explanations. Defaults to one explanation covering all.</summary>
+    public Func<IReadOnlyList<ReplayOutcome>, IReadOnlyList<ExplanationDto>> Behavior { get; set; } =
+        failures => failures.Count == 0
+            ? []
+            : [new ExplanationDto("Failures explained", "detail", failures.Select(f => f.ScenarioId.ToString()).ToList(), 0.9, "request error")];
+
+    public Task<IReadOnlyList<ExplanationDto>> ExplainAsync(
+        string runId, IReadOnlyList<ReplayOutcome> failures, CancellationToken ct)
+        => Task.FromResult(Behavior(failures));
+}
+
 public sealed record RecordedCheck(Guid RunId, bool Success, string Summary, string DetailsUrl);
 
 /// <summary>Fake GitHub checks that records what would have been posted.</summary>

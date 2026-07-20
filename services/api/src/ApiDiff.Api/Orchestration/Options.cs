@@ -19,6 +19,9 @@ public sealed class OrchestrationOptions
     /// <summary>Address of the Go replay engine's gRPC server.</summary>
     public string ReplayEngineAddress { get; set; } = "http://replay-engine:9090";
 
+    /// <summary>Address of the Python analysis service's gRPC server.</summary>
+    public string AnalysisServiceAddress { get; set; } = "http://analysis:9091";
+
     /// <summary>Base URL of the dashboard, used to build run report links.</summary>
     public string DashboardBaseUrl { get; set; } = "http://localhost:5173";
 

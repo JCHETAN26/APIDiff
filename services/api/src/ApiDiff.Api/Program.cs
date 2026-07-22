@@ -85,6 +85,18 @@ builder.Services.AddHostedService<RunOrchestrationService>();
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
+// CORS for the dashboard SPA. Origins come from config (Cors:AllowedOrigins);
+// empty by default so nothing is exposed unless configured.
+const string DashboardCors = "dashboard";
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(options => options.AddPolicy(DashboardCors, policy =>
+{
+    if (corsOrigins.Length > 0)
+    {
+        policy.WithOrigins(corsOrigins).AllowAnyHeader().AllowAnyMethod();
+    }
+}));
+
 var app = builder.Build();
 
 // Apply pending migrations on startup so the service is usable out of the box.
@@ -94,6 +106,7 @@ if (!builder.Configuration.GetValue("SkipStartupMigration", false))
     await scope.ServiceProvider.GetRequiredService<ApiDiffDbContext>().Database.MigrateAsync();
 }
 
+app.UseCors(DashboardCors);
 app.UseAuthentication();
 app.UseAuthorization();
 

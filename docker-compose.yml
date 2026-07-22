@@ -41,6 +41,10 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=apidiff;Username=apidiff;Password=apidiff
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      # Local dev only: trust the bearer token as the user (no identity provider
+      # required) and allow the dashboard origin. Never enable in production.
+      Authentication__DevMode: "true"
+      Cors__AllowedOrigins__0: http://localhost:5173
     ports:
       - "8080:8080"
     depends_on:

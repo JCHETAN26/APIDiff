@@ -22,12 +22,41 @@ docs/adr/              # Architecture Decision Records
 
 ## Local development
 
-Prerequisites: Docker. (Go 1.26+, Node 22+, Python 3.13+ for running individual
-services outside containers; .NET 9 SDK for building `api` locally.)
+Prerequisites: Docker, and Node 22+ for the dashboard. (Go 1.25+, Python 3.13+,
+.NET 9 SDK only if you build a service outside its container.)
 
-```bash
-docker compose up --build      # bring up Postgres + services
-```
+### Try it locally (no GCP, no identity provider)
+
+1. **Backend** — Postgres + the four services:
+
+   ```bash
+   docker compose up --build
+   ```
+
+   In compose the API runs in **dev-auth mode** (`Authentication:DevMode=true`):
+   it trusts the bearer token as the signed-in user, so no OIDC provider is
+   needed. This is off by default and never enabled in production.
+
+2. **Dashboard**:
+
+   ```bash
+   cd web/dashboard && npm install && npm run dev
+   ```
+
+   Open <http://localhost:5173>. Sign in by pasting any word as the token
+   (e.g. `demo-user`).
+
+3. **Seed a sample run** so there's something to look at:
+
+   ```bash
+   scripts/seed-demo.sh
+   ```
+
+   Then browse **Acme Corp → Orders API → PR #128** to see verdicts, the
+   response diff viewer, latency deltas, and the analysis shortlist.
+
+> Production auth uses OIDC single sign-on: set `Authentication:Authority`
+> (API) and `VITE_OIDC_AUTHORITY` / `VITE_OIDC_CLIENT_ID` (dashboard).
 
 ## Engineering practice
 

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 namespace ApiDiff.Api.Auth;
@@ -13,6 +14,16 @@ public static class AuthenticationExtensions
     /// </summary>
     public static IServiceCollection AddApiDiffAuth(this IServiceCollection services, IConfiguration config)
     {
+        // Development-only: trust the bearer token as the subject so the stack
+        // runs locally without an identity provider. Never enable in production.
+        if (config.GetValue("Authentication:DevMode", false))
+        {
+            services.AddAuthentication(DevAuthHandler.SchemeName)
+                .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, _ => { });
+            services.AddAuthorization();
+            return services;
+        }
+
         var authority = config["Authentication:Authority"];
         var audience = config["Authentication:Audience"];
 

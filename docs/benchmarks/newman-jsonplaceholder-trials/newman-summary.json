@@ -1,0 +1,38 @@
+{
+  "api": "JSONPlaceholder API",
+  "base_url": "https://jsonplaceholder.typicode.com",
+  "scenario_count": 200,
+  "environment": "GitHub Codespaces",
+  "command": "npx -y newman",
+  "trials": [
+    {
+      "trial": 1,
+      "requests_total": 200,
+      "requests_failed": 0,
+      "newman_wall_clock_ms": 25077,
+      "newman_internal_duration_ms": 12296
+    },
+    {
+      "trial": 2,
+      "requests_total": 200,
+      "requests_failed": 0,
+      "newman_wall_clock_ms": 13330,
+      "newman_internal_duration_ms": 11419
+    },
+    {
+      "trial": 3,
+      "requests_total": 200,
+      "requests_failed": 0,
+      "newman_wall_clock_ms": 12857,
+      "newman_internal_duration_ms": 11006
+    }
+  ],
+  "summary": {
+    "median_newman_wall_clock_ms": 13330,
+    "median_newman_internal_duration_ms": 11419,
+    "median_apidiff_concurrent_ms": 660,
+    "median_apidiff_vs_newman_wall_clock_reduction_pct": 95.05439916971018,
+    "median_apidiff_vs_newman_internal_reduction_pct": 94.23041977103398
+  },
+  "notes": "Raw Newman JSON reports included all 200 response bodies per run. This compact summary keeps the request pass/fail counts and timing values used in docs/benchmarks/README.md."
+}

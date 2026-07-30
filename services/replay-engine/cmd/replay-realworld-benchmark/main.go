@@ -12,7 +12,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"sort"
+	"strings"
 	"time"
 
 	commonv1 "github.com/apidiff/replay-engine/gen/apidiff/common/v1"
@@ -46,6 +48,11 @@ type report struct {
 	TimeReductionPct    float64        `json:"time_reduction_pct"`
 	SequentialScenarios float64        `json:"sequential_scenarios_per_second"`
 	ConcurrentScenarios float64        `json:"concurrent_scenarios_per_second"`
+	NewmanMs            int64          `json:"newman_ms,omitempty"`
+	NewmanScenarios     float64        `json:"newman_scenarios_per_second,omitempty"`
+	NewmanVsConcurrent  float64        `json:"newman_vs_concurrent_time_reduction_pct,omitempty"`
+	NewmanJSONOut       string         `json:"newman_json_out,omitempty"`
+	PostmanCollection   string         `json:"postman_collection,omitempty"`
 	SequentialVerdicts  map[string]int `json:"sequential_verdicts"`
 	ConcurrentVerdicts  map[string]int `json:"concurrent_verdicts"`
 	HTTPStatusCounts    map[string]int `json:"http_status_counts"`
@@ -63,6 +70,9 @@ func main() {
 		timeout     = flag.Duration("timeout", 10*time.Second, "per-request timeout")
 		latencyRate = flag.Float64("latency-ratio", 1.0, "fraction slower than captured baseline before a latency regression is reported")
 		jsonOut     = flag.String("json-out", "", "optional path to write the JSON report")
+		postmanOut  = flag.String("postman-out", "", "optional path to write a matching Postman collection")
+		newmanJSON  = flag.String("newman-json-out", "", "optional path to write a Newman JSON report and include Newman timing")
+		newmanCmd   = flag.String("newman-command", "newman", "Newman command used when -newman-json-out is set, for example 'newman' or 'npx -y newman'")
 	)
 	flag.Parse()
 
@@ -108,6 +118,32 @@ func main() {
 		log.Fatalf("concurrent replay: %v", err)
 	}
 
+	var newmanDuration time.Duration
+	if *postmanOut != "" || *newmanJSON != "" {
+		collectionPath := *postmanOut
+		if collectionPath == "" {
+			tmp, err := os.CreateTemp("", "apidiff-postman-*.json")
+			if err != nil {
+				log.Fatalf("create temp Postman collection: %v", err)
+			}
+			collectionPath = tmp.Name()
+			if err := tmp.Close(); err != nil {
+				log.Fatalf("close temp Postman collection: %v", err)
+			}
+			defer func() { _ = os.Remove(collectionPath) }()
+		}
+		if err := writePostmanCollection(collectionPath, api, paths[:*count]); err != nil {
+			log.Fatalf("write Postman collection: %v", err)
+		}
+		*postmanOut = collectionPath
+	}
+	if *newmanJSON != "" {
+		newmanDuration, err = runNewman(ctx, *newmanCmd, *postmanOut, *newmanJSON, *timeout)
+		if err != nil {
+			log.Fatalf("newman run: %v", err)
+		}
+	}
+
 	scenarioIDs := make([]string, 0, len(scenarios))
 	for _, s := range scenarios {
 		scenarioIDs = append(scenarioIDs, s.GetId())
@@ -128,6 +164,11 @@ func main() {
 		TimeReductionPct:    percentReduction(seqDuration, conDuration),
 		SequentialScenarios: throughput(len(scenarios), seqDuration),
 		ConcurrentScenarios: throughput(len(scenarios), conDuration),
+		NewmanMs:            newmanDuration.Milliseconds(),
+		NewmanScenarios:     throughput(len(scenarios), newmanDuration),
+		NewmanVsConcurrent:  percentReduction(newmanDuration, conDuration),
+		NewmanJSONOut:       *newmanJSON,
+		PostmanCollection:   *postmanOut,
 		SequentialVerdicts:  seqVerdicts,
 		ConcurrentVerdicts:  conVerdicts,
 		HTTPStatusCounts:    statusCounts,
@@ -301,6 +342,81 @@ func runReplay(ctx context.Context, scenarios []*replayv1.Scenario, api benchmar
 		return nil
 	})
 	return time.Since(start), verdicts, err
+}
+
+type postmanCollection struct {
+	Info postmanInfo   `json:"info"`
+	Item []postmanItem `json:"item"`
+}
+
+type postmanInfo struct {
+	Name   string `json:"name"`
+	Schema string `json:"schema"`
+}
+
+type postmanItem struct {
+	Name    string         `json:"name"`
+	Request postmanRequest `json:"request"`
+}
+
+type postmanRequest struct {
+	Method string          `json:"method"`
+	Header []postmanHeader `json:"header"`
+	URL    string          `json:"url"`
+}
+
+type postmanHeader struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+func writePostmanCollection(path string, api benchmarkAPI, paths []string) error {
+	items := make([]postmanItem, 0, len(paths))
+	for i, p := range paths {
+		items = append(items, postmanItem{
+			Name: fmt.Sprintf("%s-%03d", api.Key, i+1),
+			Request: postmanRequest{
+				Method: http.MethodGet,
+				Header: []postmanHeader{
+					{Key: "User-Agent", Value: userAgent},
+				},
+				URL: api.BaseURL + p,
+			},
+		})
+	}
+	collection := postmanCollection{
+		Info: postmanInfo{
+			Name:   fmt.Sprintf("APIDiff %s benchmark", api.Name),
+			Schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		},
+		Item: items,
+	}
+	payload, err := json.MarshalIndent(collection, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(payload, '\n'), 0o644)
+}
+
+func runNewman(ctx context.Context, command, collectionPath, jsonOut string, timeout time.Duration) (time.Duration, error) {
+	parts := strings.Fields(command)
+	if len(parts) == 0 {
+		return 0, fmt.Errorf("newman command is empty")
+	}
+	args := append(parts[1:], []string{
+		"run", collectionPath,
+		"--reporters", "cli,json",
+		"--reporter-json-export", jsonOut,
+		"--timeout-request", fmt.Sprintf("%d", timeout.Milliseconds()),
+	}...)
+	cmd := exec.CommandContext(ctx, parts[0], args...)
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+	start := time.Now()
+	if err := cmd.Run(); err != nil {
+		return 0, err
+	}
+	return time.Since(start), nil
 }
 
 func percentReduction(sequential, concurrent time.Duration) float64 {

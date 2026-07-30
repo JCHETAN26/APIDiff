@@ -115,3 +115,60 @@ Resume-ready wording:
 > (Hacker News, JSONPlaceholder, and PokeAPI), reducing replay time by
 > 82%-93% median depending on payload size, with about 320 scenarios/s median
 > throughput on 200-scenario JSON APIs.
+
+## Newman Comparison
+
+APIDiff can export the same benchmark scenario set as a Postman collection and
+time a Newman CLI run against it. This compares APIDiff's 16-worker replay
+against Newman's sequential collection execution on the same 200
+JSONPlaceholder requests.
+
+Command:
+
+```bash
+cd services/replay-engine
+go run ./cmd/replay-realworld-benchmark \
+  -api jsonplaceholder \
+  -count 200 \
+  -concurrency 16 \
+  -timeout 10s \
+  -postman-out ../../docs/benchmarks/newman-jsonplaceholder-trials/postman-trial-1.json \
+  -newman-json-out ../../docs/benchmarks/newman-jsonplaceholder-trials/newman-trial-1.json \
+  -json-out ../../docs/benchmarks/newman-jsonplaceholder-trials/apidiff-trial-1.json \
+  -newman-command "npx -y newman"
+```
+
+Result from three Codespaces trials on 2026-07-30:
+
+| Metric | Min | Median | Mean | Max |
+|---|---:|---:|---:|---:|
+| APIDiff sequential replay | 8.568 s | 8.715 s | 8.848 s | 9.261 s |
+| APIDiff concurrent replay | 0.635 s | 0.660 s | 0.656 s | 0.672 s |
+| Newman CLI wall-clock | 12.857 s | 13.330 s | 17.088 s | 25.077 s |
+| Newman internal collection duration | 11.006 s | 11.419 s | 11.574 s | 12.296 s |
+| APIDiff reduction vs Newman wall-clock | 95.05% | 95.05% | 95.81% | 97.32% |
+| APIDiff reduction vs Newman internal duration | 94.22% | 94.23% | 94.33% | 94.53% |
+
+Per-trial results:
+
+| Trial | APIDiff concurrent | Newman wall-clock | Newman internal duration | APIDiff vs Newman wall-clock | Newman requests |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 0.672 s | 25.077 s | 12.296 s | 97.32% | 200/200 passed |
+| 2 | 0.660 s | 13.330 s | 11.419 s | 95.05% | 200/200 passed |
+| 3 | 0.635 s | 12.857 s | 11.006 s | 95.05% | 200/200 passed |
+
+Notes:
+
+- APIDiff replay timings exclude reference capture, matching the earlier
+  sequential vs concurrent benchmark methodology.
+- Newman wall-clock includes process startup and `npx` command overhead. The
+  Newman internal duration is taken from the Newman JSON reporter's run
+  timestamps.
+- Newman executed the generated Postman collection sequentially with no failed
+  requests in all three trials.
+
+Resume-ready wording:
+
+> Compared APIDiff against Newman CLI on 200 public API requests, reducing
+> replay wall-clock by 95.05% median with a 16-worker Go pool while validating
+> response and latency regressions.

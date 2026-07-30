@@ -220,7 +220,7 @@ docker compose up --build
 In a second terminal:
 
 ```bash
-VITE_API_BASE_URL="https://${CODESPACE_NAME}-8080.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}" \
+VITE_API_BASE_URL="" \
 npm --prefix web/dashboard run dev -- --host 0.0.0.0
 ```
 

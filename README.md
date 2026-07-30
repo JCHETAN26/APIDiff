@@ -119,7 +119,8 @@ system of record.
   the DB.
 - **Concurrent replay engine (Go)** — bounded worker pool with backpressure and
   per-request timeouts; a 200-scenario test asserts **zero goroutine leaks** under
-  the race detector.
+  the race detector, and a public API benchmark measured **93.79% replay time
+  reduction** across 200 Hacker News API scenarios.
 - **Structural + value diffing** with ignore-rules for volatile fields, and a
   deterministic verdict precedence.
 - **Idempotent GitHub webhooks** (HMAC-SHA256, constant-time) and **GitHub App
@@ -265,6 +266,7 @@ from local test runs.
 
 - [`docs/adr/`](docs/adr/) — 12 Architecture Decision Records (the "why").
 - [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) — telemetry, SLOs, alerting.
+- [`docs/benchmarks/`](docs/benchmarks/) — replay benchmark reports.
 - [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — STRIDE threat model.
 - [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — operational runbook.
 

@@ -27,6 +27,14 @@ func scenario(id string) *replayv1.Scenario {
 	return &replayv1.Scenario{Id: id, Request: &commonv1.HttpRequest{Method: "GET", Path: "/"}}
 }
 
+func scenarios(n int) []*replayv1.Scenario {
+	out := make([]*replayv1.Scenario, n)
+	for i := range out {
+		out[i] = scenario(fmt.Sprintf("s%d", i))
+	}
+	return out
+}
+
 func runAll(t *testing.T, req *replayv1.ReplayRequest) []*replayv1.ReplayResult {
 	t.Helper()
 	var out []*replayv1.ReplayResult
@@ -131,14 +139,10 @@ func TestConcurrencyProcessesAllWithoutLeak(t *testing.T) {
 	cand := jsonServer(t, `{"ok":true}`)
 
 	const n = 200
-	scenarios := make([]*replayv1.Scenario, n)
-	for i := range scenarios {
-		scenarios[i] = scenario(fmt.Sprintf("s%d", i))
-	}
 	req := &replayv1.ReplayRequest{
 		Baseline:  &commonv1.Target{BaseUrl: base.URL},
 		Candidate: &commonv1.Target{BaseUrl: cand.URL},
-		Scenarios: scenarios,
+		Scenarios: scenarios(n),
 		Config:    &replayv1.ReplayConfig{Concurrency: 16, RequestTimeoutMs: 5000},
 	}
 
@@ -178,6 +182,57 @@ func TestConcurrencyProcessesAllWithoutLeak(t *testing.T) {
 	if after := runtime.NumGoroutine(); after > before+5 {
 		t.Errorf("possible goroutine leak across runs: before=%d after=%d", before, after)
 	}
+}
+
+func BenchmarkReplay200ScenariosSequentialVsConcurrent(b *testing.B) {
+	cand := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(2 * time.Millisecond)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	b.Cleanup(cand.Close)
+
+	const scenarioCount = 200
+	run := func(concurrency int) time.Duration {
+		req := &replayv1.ReplayRequest{
+			Candidate: &commonv1.Target{BaseUrl: cand.URL},
+			Scenarios: scenarios(scenarioCount),
+			Config:    &replayv1.ReplayConfig{Concurrency: int32(concurrency), RequestTimeoutMs: 5000},
+		}
+		start := time.Now()
+		var results int
+		if err := NewEngine().Run(context.Background(), req, func(r *replayv1.ReplayResult) error {
+			results++
+			return nil
+		}); err != nil {
+			b.Fatalf("Run(concurrency=%d): %v", concurrency, err)
+		}
+		if results != scenarioCount {
+			b.Fatalf("Run(concurrency=%d): got %d results, want %d", concurrency, results, scenarioCount)
+		}
+		return time.Since(start)
+	}
+
+	// Warm the HTTP server and connection pools before measuring the comparison.
+	_ = run(1)
+	_ = run(16)
+
+	var sequentialTotal, concurrentTotal time.Duration
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sequentialTotal += run(1)
+		concurrentTotal += run(16)
+	}
+	b.StopTimer()
+
+	iterations := float64(b.N)
+	sequentialAvg := sequentialTotal.Seconds() / iterations
+	concurrentAvg := concurrentTotal.Seconds() / iterations
+	reduction := ((sequentialAvg - concurrentAvg) / sequentialAvg) * 100
+
+	b.ReportMetric(sequentialAvg, "sequential_s/op")
+	b.ReportMetric(concurrentAvg, "concurrent_s/op")
+	b.ReportMetric(reduction, "time_reduction_pct")
+	b.ReportMetric(float64(scenarioCount)/concurrentAvg, "concurrent_scenarios/s")
 }
 
 func settle() {

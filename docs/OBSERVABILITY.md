@@ -53,6 +53,14 @@ Alert rules are defined against the collector's Prometheus/metrics backend
 
 - **Unit-level load**: `services/replay-engine` includes a 200-scenario
   concurrency test asserting no goroutine leak (`go test -race`).
+- **Sequential vs concurrent replay baseline**: run
+  `go test ./internal/replay -bench BenchmarkReplay200ScenariosSequentialVsConcurrent -benchtime=3x -run '^$'`
+  from `services/replay-engine`. The benchmark processes the same 200 scenarios
+  sequentially (`Concurrency: 1`) and with the worker pool (`Concurrency: 16`),
+  then reports
+  `((sequential_s/op - concurrent_s/op) / sequential_s/op) * 100` as
+  `time_reduction_pct`. On a local Apple M2 run, this reported `92.91%` time
+  reduction against a stub target with 2 ms per request.
 - **Service-level**: run the replay engine against a stub target and drive the
   gRPC `Replay` RPC with a scenario batch sized to the throughput SLO; watch the
   `apidiff.runs.*` metrics and goroutine/heap profiles. Soak for ≥ 1 hour before

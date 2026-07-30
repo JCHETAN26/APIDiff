@@ -75,3 +75,43 @@ Notes:
   performance regression.
 - Treat this as a real-world public API benchmark, not production customer
   traffic.
+
+## Cross-API Benchmarks
+
+The same benchmark harness was also run against two more public APIs from
+Codespaces on 2026-07-30. Each trial captured live reference responses first,
+then replayed the same captured scenario set sequentially and with 16 Go
+workers.
+
+| API | Scenarios/trial | Trials | Median time reduction | Mean time reduction | Median concurrent throughput | Notes |
+|---|---:|---:|---:|---:|---:|---|
+| Hacker News Firebase API | 200 | 10 | 93.31% | 92.58% | 319.60 scenarios/s | Live story API with volatile fields ignored |
+| JSONPlaceholder API | 200 | 5 | 92.74% | 92.90% | 324.88 scenarios/s | Stable small JSON comment payloads |
+| PokeAPI | 100 | 5 | 82.37% | 82.64% | 99.21 scenarios/s | Heavier nested JSON payloads |
+
+JSONPlaceholder trials:
+
+| Trial | Sequential | Concurrent | Time reduction | Concurrent throughput |
+|---:|---:|---:|---:|---:|
+| 1 | 9.546 s | 0.615 s | 93.55% | 324.88 scenarios/s |
+| 2 | 8.458 s | 0.639 s | 92.44% | 312.78 scenarios/s |
+| 3 | 8.895 s | 0.614 s | 93.09% | 325.41 scenarios/s |
+| 4 | 8.493 s | 0.616 s | 92.74% | 324.55 scenarios/s |
+| 5 | 8.395 s | 0.613 s | 92.69% | 325.95 scenarios/s |
+
+PokeAPI trials:
+
+| Trial | Sequential | Concurrent | Time reduction | Concurrent throughput |
+|---:|---:|---:|---:|---:|
+| 1 | 6.158 s | 1.007 s | 83.63% | 99.21 scenarios/s |
+| 2 | 6.115 s | 1.114 s | 81.77% | 89.70 scenarios/s |
+| 3 | 5.559 s | 0.989 s | 82.20% | 101.02 scenarios/s |
+| 4 | 5.873 s | 1.035 s | 82.37% | 96.55 scenarios/s |
+| 5 | 5.686 s | 0.954 s | 83.22% | 104.78 scenarios/s |
+
+Resume-ready wording:
+
+> Benchmarked APIDiff across 20 real-world public API trials
+> (Hacker News, JSONPlaceholder, and PokeAPI), reducing replay time by
+> 82%-93% median depending on payload size, with about 320 scenarios/s median
+> throughput on 200-scenario JSON APIs.

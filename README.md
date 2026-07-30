@@ -207,18 +207,20 @@ screenshot above.
 ## Run it in GitHub Codespaces
 
 Use this when you do not have Docker running locally. Open the repo in
-**GitHub Codespaces**; the devcontainer installs .NET, Go, Node, Python, Docker
-CLI access, `psql`, and dashboard dependencies.
+**GitHub Codespaces**; the devcontainer provides Docker CLI access and Node for
+the dashboard, while Docker Compose builds the backend service images.
 
 In the Codespaces terminal:
 
 ```bash
+CODESPACES_DASHBOARD_ORIGIN="https://${CODESPACE_NAME}-5173.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}" \
 docker compose up --build
 ```
 
 In a second terminal:
 
 ```bash
+VITE_API_BASE_URL="https://${CODESPACE_NAME}-8080.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}" \
 npm --prefix web/dashboard run dev -- --host 0.0.0.0
 ```
 

@@ -20,7 +20,17 @@ import (
 	"github.com/apidiff/replay-engine/internal/replay"
 )
 
-const hnBaseURL = "https://hacker-news.firebaseio.com"
+const userAgent = "APIDiff real-world benchmark"
+
+type benchmarkAPI struct {
+	Key           string
+	Name          string
+	BaseURL       string
+	DefaultCount  int
+	IgnoredFields []string
+	Notes         string
+	Paths         func(context.Context, *http.Client, int) ([]string, error)
+}
 
 type report struct {
 	API                 string         `json:"api"`
@@ -47,7 +57,8 @@ type report struct {
 
 func main() {
 	var (
-		count       = flag.Int("count", 200, "number of Hacker News item scenarios to replay")
+		apiName     = flag.String("api", "hn", "public API fixture to benchmark: hn, jsonplaceholder, or pokeapi")
+		count       = flag.Int("count", 0, "number of scenarios to replay; defaults depend on -api")
 		concurrent  = flag.Int("concurrency", 16, "worker-pool concurrency for the concurrent replay")
 		timeout     = flag.Duration("timeout", 10*time.Second, "per-request timeout")
 		latencyRate = flag.Float64("latency-ratio", 1.0, "fraction slower than captured baseline before a latency regression is reported")
@@ -55,6 +66,13 @@ func main() {
 	)
 	flag.Parse()
 
+	api, err := selectAPI(*apiName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if *count == 0 {
+		*count = api.DefaultCount
+	}
 	if *count <= 0 {
 		log.Fatal("-count must be positive")
 	}
@@ -66,27 +84,26 @@ func main() {
 	client := &http.Client{Timeout: *timeout}
 	started := time.Now().UTC()
 
-	ids, err := topStoryIDs(ctx, client, *count)
+	paths, err := api.Paths(ctx, client, *count)
 	if err != nil {
-		log.Fatalf("top stories: %v", err)
+		log.Fatalf("%s scenarios: %v", api.Key, err)
 	}
-	if len(ids) < *count {
-		log.Fatalf("wanted %d scenarios, got %d top-story ids", *count, len(ids))
+	if len(paths) < *count {
+		log.Fatalf("wanted %d scenarios, got %d paths", *count, len(paths))
 	}
 
 	captureStart := time.Now()
-	scenarios, statusCounts, err := captureScenarios(ctx, client, ids[:*count])
+	scenarios, statusCounts, err := captureScenarios(ctx, client, api, paths[:*count])
 	if err != nil {
 		log.Fatalf("capture scenarios: %v", err)
 	}
 	captureElapsed := time.Since(captureStart)
 
-	ignore := []string{"score", "descendants", "kids"}
-	seqDuration, seqVerdicts, err := runReplay(ctx, scenarios, 1, *timeout, *latencyRate, ignore)
+	seqDuration, seqVerdicts, err := runReplay(ctx, scenarios, api, 1, *timeout, *latencyRate)
 	if err != nil {
 		log.Fatalf("sequential replay: %v", err)
 	}
-	conDuration, conVerdicts, err := runReplay(ctx, scenarios, *concurrent, *timeout, *latencyRate, ignore)
+	conDuration, conVerdicts, err := runReplay(ctx, scenarios, api, *concurrent, *timeout, *latencyRate)
 	if err != nil {
 		log.Fatalf("concurrent replay: %v", err)
 	}
@@ -98,13 +115,13 @@ func main() {
 	sort.Strings(scenarioIDs)
 
 	r := report{
-		API:                 "Hacker News Firebase API",
-		BaseURL:             hnBaseURL,
+		API:                 api.Name,
+		BaseURL:             api.BaseURL,
 		ScenarioCount:       len(scenarios),
 		ConcurrentWorkers:   *concurrent,
 		RequestTimeoutMs:    timeout.Milliseconds(),
 		LatencyRatio:        *latencyRate,
-		IgnoredFields:       ignore,
+		IgnoredFields:       api.IgnoredFields,
 		CaptureElapsedMs:    captureElapsed.Milliseconds(),
 		SequentialMs:        seqDuration.Milliseconds(),
 		ConcurrentMs:        conDuration.Milliseconds(),
@@ -117,7 +134,7 @@ func main() {
 		ScenarioIDs:         scenarioIDs,
 		StartedAt:           started,
 		CompletedAt:         time.Now().UTC(),
-		Notes:               "References are captured immediately before replay. score, descendants, and kids are ignored because they are volatile on live Hacker News stories.",
+		Notes:               api.Notes,
 	}
 
 	payload, err := json.MarshalIndent(r, "", "  ")
@@ -132,12 +149,53 @@ func main() {
 	}
 }
 
-func topStoryIDs(ctx context.Context, client *http.Client, count int) ([]int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, hnBaseURL+"/v0/topstories.json", nil)
+func selectAPI(key string) (benchmarkAPI, error) {
+	apis := map[string]benchmarkAPI{
+		"hn": {
+			Key:          "hn",
+			Name:         "Hacker News Firebase API",
+			BaseURL:      "https://hacker-news.firebaseio.com",
+			DefaultCount: 200,
+			IgnoredFields: []string{
+				"score",
+				"descendants",
+				"kids",
+			},
+			Notes: "References are captured immediately before replay. score, descendants, and kids are ignored because they are volatile on live Hacker News stories.",
+			Paths: hackerNewsPaths,
+		},
+		"jsonplaceholder": {
+			Key:           "jsonplaceholder",
+			Name:          "JSONPlaceholder API",
+			BaseURL:       "https://jsonplaceholder.typicode.com",
+			DefaultCount:  200,
+			IgnoredFields: nil,
+			Notes:         "References are captured immediately before replay. JSONPlaceholder comment resources are static demo data, so no response fields are ignored.",
+			Paths:         numberedPaths("/comments/%d", 500),
+		},
+		"pokeapi": {
+			Key:           "pokeapi",
+			Name:          "PokeAPI",
+			BaseURL:       "https://pokeapi.co",
+			DefaultCount:  100,
+			IgnoredFields: nil,
+			Notes:         "References are captured immediately before replay. PokeAPI Pokemon resources are larger nested JSON documents; no response fields are ignored.",
+			Paths:         numberedPaths("/api/v2/pokemon/%d", 1025),
+		},
+	}
+	api, ok := apis[key]
+	if !ok {
+		return benchmarkAPI{}, fmt.Errorf("unknown -api %q; want hn, jsonplaceholder, or pokeapi", key)
+	}
+	return api, nil
+}
+
+func hackerNewsPaths(ctx context.Context, client *http.Client, count int) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://hacker-news.firebaseio.com/v0/topstories.json", nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "APIDiff real-world benchmark")
+	req.Header.Set("User-Agent", userAgent)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -153,26 +211,42 @@ func topStoryIDs(ctx context.Context, client *http.Client, count int) ([]int, er
 	if len(ids) > count {
 		ids = ids[:count]
 	}
-	return ids, nil
+	paths := make([]string, 0, len(ids))
+	for _, id := range ids {
+		paths = append(paths, fmt.Sprintf("/v0/item/%d.json", id))
+	}
+	return paths, nil
 }
 
-func captureScenarios(ctx context.Context, client *http.Client, ids []int) ([]*replayv1.Scenario, map[string]int, error) {
-	scenarios := make([]*replayv1.Scenario, 0, len(ids))
+func numberedPaths(format string, maxCount int) func(context.Context, *http.Client, int) ([]string, error) {
+	return func(_ context.Context, _ *http.Client, count int) ([]string, error) {
+		if count > maxCount {
+			return nil, fmt.Errorf("count %d exceeds max %d for this API", count, maxCount)
+		}
+		paths := make([]string, 0, count)
+		for i := 1; i <= count; i++ {
+			paths = append(paths, fmt.Sprintf(format, i))
+		}
+		return paths, nil
+	}
+}
+
+func captureScenarios(ctx context.Context, client *http.Client, api benchmarkAPI, paths []string) ([]*replayv1.Scenario, map[string]int, error) {
+	scenarios := make([]*replayv1.Scenario, 0, len(paths))
 	statusCounts := map[string]int{}
-	for _, id := range ids {
-		path := fmt.Sprintf("/v0/item/%d.json", id)
-		body, latency, status, err := fetch(ctx, client, path)
+	for i, path := range paths {
+		body, latency, status, err := fetch(ctx, client, api, path)
 		if err != nil {
 			return nil, nil, fmt.Errorf("%s: %w", path, err)
 		}
 		statusCounts[fmt.Sprintf("%d", status)]++
 		scenarios = append(scenarios, &replayv1.Scenario{
-			Id: fmt.Sprintf("hn-%d", id),
+			Id: fmt.Sprintf("%s-%03d", api.Key, i+1),
 			Request: &commonv1.HttpRequest{
 				Method: http.MethodGet,
 				Path:   path,
 				Headers: []*commonv1.Header{
-					{Name: "User-Agent", Value: "APIDiff real-world benchmark"},
+					{Name: "User-Agent", Value: userAgent},
 				},
 			},
 			ReferenceResponse: &commonv1.HttpResponse{
@@ -185,12 +259,12 @@ func captureScenarios(ctx context.Context, client *http.Client, ids []int) ([]*r
 	return scenarios, statusCounts, nil
 }
 
-func fetch(ctx context.Context, client *http.Client, path string) ([]byte, time.Duration, int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, hnBaseURL+path, nil)
+func fetch(ctx context.Context, client *http.Client, api benchmarkAPI, path string) ([]byte, time.Duration, int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, api.BaseURL+path, nil)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	req.Header.Set("User-Agent", "APIDiff real-world benchmark")
+	req.Header.Set("User-Agent", userAgent)
 	start := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
@@ -204,18 +278,18 @@ func fetch(ctx context.Context, client *http.Client, path string) ([]byte, time.
 	return body, time.Since(start), resp.StatusCode, nil
 }
 
-func runReplay(ctx context.Context, scenarios []*replayv1.Scenario, concurrency int, timeout time.Duration, latencyRatio float64, ignore []string) (time.Duration, map[string]int, error) {
+func runReplay(ctx context.Context, scenarios []*replayv1.Scenario, api benchmarkAPI, concurrency int, timeout time.Duration, latencyRatio float64) (time.Duration, map[string]int, error) {
 	req := &replayv1.ReplayRequest{
-		RunId:     fmt.Sprintf("hn-realworld-c%d", concurrency),
+		RunId:     fmt.Sprintf("%s-realworld-c%d", api.Key, concurrency),
 		Scenarios: scenarios,
 		Candidate: &commonv1.Target{
-			Label:   "hacker-news",
-			BaseUrl: hnBaseURL,
+			Label:   api.Key,
+			BaseUrl: api.BaseURL,
 		},
 		Config: &replayv1.ReplayConfig{
 			Concurrency:            int32(concurrency),
 			RequestTimeoutMs:       timeout.Milliseconds(),
-			IgnoreFields:           ignore,
+			IgnoreFields:           api.IgnoredFields,
 			LatencyRegressionRatio: latencyRatio,
 		},
 	}

@@ -193,11 +193,45 @@ Sign in by pasting any word as the token (e.g. `demo-user`).
 scripts/seed-demo.sh
 ```
 
-Then open **Acme Corp → Orders API → PR #128** to see the run in the screenshot
-above.
+The script is safe to rerun: it reuses the demo org/project, replaces the PR
+#128 sample data, and prints a dashboard URL. It seeds three sanitized API
+scenarios, one completed regression run, a field-level behavioral regression,
+a latency regression, and two analysis explanations.
+
+Then open **Acme Corp → Orders API → PR #128** to see the workflow in the
+screenshot above.
 
 > Production auth uses OIDC single sign-on: set `Authentication:Authority` (API)
 > and `VITE_OIDC_AUTHORITY` / `VITE_OIDC_CLIENT_ID` (dashboard).
+
+## Run it in GitHub Codespaces
+
+Use this when you do not have Docker running locally. Open the repo in
+**GitHub Codespaces**; the devcontainer installs .NET, Go, Node, Python, Docker
+CLI access, `psql`, and dashboard dependencies.
+
+In the Codespaces terminal:
+
+```bash
+docker compose up --build
+```
+
+In a second terminal:
+
+```bash
+npm --prefix web/dashboard run dev -- --host 0.0.0.0
+```
+
+After the API is listening on port `8080`, seed the review workflow:
+
+```bash
+scripts/seed-demo.sh
+```
+
+Open the forwarded **Dashboard** port (`5173`), sign in with `demo-user`, and
+use the dashboard URL printed by the seed script. The API runs in dev-auth mode
+inside compose, so no external identity provider or cloud credentials are
+needed.
 
 ## Testing & CI/CD
 
